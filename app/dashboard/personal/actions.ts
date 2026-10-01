@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
-type Role = 'mesero' | 'supervisor' | 'admin';
+type Role = 'mesero' | 'ayudante' | 'hostess' | 'barrero' | 'supervisor' | 'admin';
 
 export interface ProfileRecord {
   id: string;
@@ -40,11 +40,12 @@ export async function createStaffAction(formData: FormData): Promise<ProfileReco
   await verifyAdmin();
 
   const name = (formData.get('name') as string).trim();
-  const email = (formData.get('email') as string).trim().toLowerCase();
+  const username = (formData.get('username') as string).trim().toLowerCase();
   const password = formData.get('password') as string;
   const role = formData.get('role') as Role;
-  const home_area =
-    role === 'mesero' ? ((formData.get('home_area') as string) || null) : null;
+
+  // Email interno auto-generado — los colaboradores no necesitan correo real
+  const email = `${username}@staff.pizzanostra.mx`;
 
   const admin = createAdminClient();
 
@@ -62,7 +63,7 @@ export async function createStaffAction(formData: FormData): Promise<ProfileReco
     id: userData.user.id,
     name,
     role,
-    home_area,
+    home_area: null,
     active: true,
   };
 

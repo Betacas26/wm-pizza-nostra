@@ -13,10 +13,10 @@ import {
 const AREAS = ['PB', 'PA', 'TE'] as const;
 type Area = (typeof AREAS)[number];
 
-const ROLES = ['mesero', 'supervisor', 'admin'] as const;
+const ROLES = ['mesero', 'ayudante', 'hostess', 'barrero', 'supervisor', 'admin'] as const;
 type Role = (typeof ROLES)[number];
 
-const ROLE_ORDER: Role[] = ['admin', 'supervisor', 'mesero'];
+const ROLE_ORDER: Role[] = ['admin', 'supervisor', 'hostess', 'mesero', 'barrero', 'ayudante'];
 
 const AREA_LABELS: Record<Area, string> = {
   PB: 'Planta Baja',
@@ -26,12 +26,18 @@ const AREA_LABELS: Record<Area, string> = {
 
 const ROLE_LABELS: Record<Role, string> = {
   mesero: 'Mesero',
+  ayudante: 'Ayudante',
+  hostess: 'Hostess',
+  barrero: 'Barrero',
   supervisor: 'Supervisor',
   admin: 'Admin',
 };
 
 const ROLE_BADGE: Record<Role, string> = {
   mesero: 'bg-amber-100 text-amber-700',
+  ayudante: 'bg-orange-100 text-orange-700',
+  hostess: 'bg-pink-100 text-pink-700',
+  barrero: 'bg-teal-100 text-teal-700',
   supervisor: 'bg-sky-100 text-sky-700',
   admin: 'bg-violet-100 text-violet-700',
 };
@@ -74,10 +80,9 @@ export default function PersonalClient({
 
   // Estado del formulario de creación
   const [formName, setFormName] = useState('');
-  const [formEmail, setFormEmail] = useState('');
+  const [formUsername, setFormUsername] = useState('');
   const [formPassword, setFormPassword] = useState('');
   const [formRole, setFormRole] = useState<Role>('mesero');
-  const [formArea, setFormArea] = useState<Area>('PB');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -141,18 +146,16 @@ export default function PersonalClient({
     try {
       const fd = new FormData();
       fd.set('name', formName.trim());
-      fd.set('email', formEmail.trim());
+      fd.set('username', formUsername.trim());
       fd.set('password', formPassword);
       fd.set('role', formRole);
-      if (formRole === 'mesero') fd.set('home_area', formArea);
       const created = await createStaffAction(fd);
       setProfiles((prev) => [...prev, created]);
       setShowCreate(false);
       setFormName('');
-      setFormEmail('');
+      setFormUsername('');
       setFormPassword('');
       setFormRole('mesero');
-      setFormArea('PB');
     } catch (err) {
       setCreateError(
         err instanceof Error ? err.message : 'Error al crear el colaborador.',
@@ -348,31 +351,40 @@ export default function PersonalClient({
               {/* Nombre */}
               <div>
                 <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1">
-                  Nombre
+                  Nombre completo
                 </label>
                 <input
                   type="text"
                   required
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
-                  placeholder="Nombre completo"
+                  placeholder="Ej. Juan Pérez"
                   className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base"
                 />
               </div>
 
-              {/* Correo */}
+              {/* Usuario */}
               <div>
                 <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1">
-                  Correo
+                  Usuario
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   required
-                  value={formEmail}
-                  onChange={(e) => setFormEmail(e.target.value)}
-                  placeholder="correo@ejemplo.com"
-                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base"
+                  value={formUsername}
+                  onChange={(e) =>
+                    setFormUsername(e.target.value.replace(/[^a-z0-9._-]/gi, '').toLowerCase())
+                  }
+                  placeholder="Ej. juan.perez"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base font-mono"
                 />
+                {formUsername && (
+                  <p className="text-xs text-stone-400 mt-1 pl-1">
+                    Acceso: {formUsername}@staff.pizzanostra.mx
+                  </p>
+                )}
               </div>
 
               {/* Contraseña temporal */}
@@ -396,13 +408,13 @@ export default function PersonalClient({
                 <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1">
                   Rol
                 </label>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {ROLES.map((r) => (
                     <button
                       key={r}
                       type="button"
                       onClick={() => setFormRole(r)}
-                      className={`flex-1 min-h-[40px] rounded-xl text-xs font-semibold transition ${
+                      className={`min-h-[40px] rounded-xl text-xs font-semibold transition px-1 ${
                         formRole === r
                           ? ROLE_BADGE[r]
                           : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
@@ -413,34 +425,6 @@ export default function PersonalClient({
                   ))}
                 </div>
               </div>
-
-              {/* Área (solo meseros) */}
-              {formRole === 'mesero' && (
-                <div>
-                  <label className="block text-xs font-bold text-stone-600 uppercase tracking-wider mb-1">
-                    Área de trabajo
-                  </label>
-                  <div className="flex gap-2">
-                    {AREAS.map((a) => (
-                      <button
-                        key={a}
-                        type="button"
-                        onClick={() => setFormArea(a)}
-                        className={`flex-1 min-h-[44px] rounded-xl text-sm font-bold transition ${
-                          formArea === a
-                            ? 'bg-amber-500 text-white shadow-sm'
-                            : 'bg-stone-100 text-stone-500 hover:bg-amber-50'
-                        }`}
-                      >
-                        {a}
-                        <span className="block text-xs font-normal leading-tight">
-                          {AREA_LABELS[a]}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <button
                 type="submit"

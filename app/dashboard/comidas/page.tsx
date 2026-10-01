@@ -1,6 +1,24 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
-import Link from 'next/link';
+import ComidasClient, {
+  type StaffMember,
+  type MealBreak,
+} from './ComidasClient';
+
+interface ProfileBasic {
+  id: string;
+  name: string | null;
+}
+
+interface MealBreakRow {
+  id: string;
+  break_date: string;
+  staff_id: string;
+  started_at: string;
+  duration_minutes: number;
+  ended_at: string | null;
+  status: string;
+}
 
 export default async function ComidasPage() {
   const supabase = await createClient();
@@ -10,35 +28,47 @@ export default async function ComidasPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  return (
-    <div className="min-h-screen bg-stone-50 text-stone-800">
-      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
-        <Link
-          href="/dashboard"
-          className="text-stone-400 hover:text-stone-700 text-xl leading-none"
-          aria-label="Volver"
-        >
-          &#8592;
-        </Link>
-        <div>
-          <h1 className="font-extrabold text-amber-600 text-lg leading-tight">
-            Comidas
-          </h1>
-          <p className="text-xs text-stone-500">Control de comidas de turno</p>
-        </div>
-      </header>
+  const today = new Date().toISOString().split('T')[0];
 
-      <main className="p-4 max-w-xl mx-auto mt-8">
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-8 text-center">
-          <p className="text-5xl mb-4">&#127829;</p>
-          <h2 className="font-bold text-stone-900 text-base mb-2">
-            Temporizador de Comidas
-          </h2>
-          <p className="text-sm text-stone-400">
-            Control de 30 minutos por colaborador con alertas. En construccion.
-          </p>
-        </div>
-      </main>
-    </div>
+  const [{ data: profilesData }, { data: breaksData }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, name')
+      .eq('active', true)
+      .order('name'),
+    supabase
+      .from('meal_breaks')
+      .select('id, break_date, staff_id, started_at, duration_minutes, ended_at, status')
+      .eq('break_date', today)
+      .order('started_at', { ascending: false }),
+  ]);
+
+  const staff: StaffMember[] = (profilesData ?? []).map((p: ProfileBasic) => ({
+    id: p.id,
+    name: p.name ?? '(sin nombre)',
+    role: '',
+  }));
+
+  const nameMap = new Map<string, string>(staff.map((s) => [s.id, s.name]));
+
+  const initialBreaks: MealBreak[] = (breaksData ?? []).map(
+    (b: MealBreakRow) => ({
+      id: b.id,
+      break_date: b.break_date,
+      staff_id: b.staff_id,
+      staff_name: nameMap.get(b.staff_id) ?? b.staff_id,
+      started_at: b.started_at,
+      duration_minutes: b.duration_minutes,
+      ended_at: b.ended_at,
+      status: b.status as 'active' | 'completed' | 'overdue',
+    }),
+  );
+
+  return (
+    <ComidasClient
+      staff={staff}
+      initialBreaks={initialBreaks}
+      today={today}
+    />
   );
 }

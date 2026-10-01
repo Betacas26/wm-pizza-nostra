@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { endMealBreakAction } from './actions';
+import { startMealBreakAction, endMealBreakAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 type BreakStatus = 'active' | 'completed' | 'overdue';
@@ -105,8 +104,6 @@ export default function ComidasClient({
   initialBreaks,
   today,
 }: ComidasClientProps) {
-  const supabase = useMemo(() => createClient(), []);
-
   const [breaks, setBreaks] = useState<MealBreak[]>(initialBreaks);
   const [nowMs, setNowMs] = useState(Date.now());
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id ?? '');
@@ -142,36 +139,25 @@ export default function ComidasClient({
     if (!selectedStaffId || starting) return;
     setStarting(true);
 
-    const startedAt = new Date().toISOString();
-    const { data, error } = await supabase
-      .from('meal_breaks')
-      .insert({
-        break_date: today,
-        staff_id: selectedStaffId,
-        started_at: startedAt,
-        duration_minutes: 30,
-        ended_at: null,
-        status: 'active',
-      })
-      .select()
-      .single();
-
-    if (!error && data) {
+    try {
+      const result = await startMealBreakAction(selectedStaffId);
       const staffName =
         staff.find((s) => s.id === selectedStaffId)?.name ?? selectedStaffId;
       setBreaks((prev) => [
         {
-          id: (data as { id: string }).id,
-          break_date: today,
-          staff_id: selectedStaffId,
+          id: result.id,
+          break_date: result.break_date,
+          staff_id: result.staff_id,
           staff_name: staffName,
-          started_at: startedAt,
-          duration_minutes: 30,
+          started_at: result.started_at,
+          duration_minutes: result.duration_minutes,
           ended_at: null,
           status: 'active',
         },
         ...prev,
       ]);
+    } catch {
+      // Error silenciado — staffId inválido rechazado en servidor
     }
 
     setStarting(false);

@@ -310,12 +310,6 @@ export default function VentasClient({
         shift: formShift,
         staff_id: formStaffId,
         total: calc.total,
-        pct: APORTE_PCT,
-        glassware: CRISTALERIA,
-        captain_pct: CAPITAN_PCT,
-        contribution: calc.contribution,
-        captain_tip: calc.captain_tip,
-        to_deliver: calc.to_deliver,
       });
 
       const record: SaleRecord = {
@@ -324,11 +318,11 @@ export default function VentasClient({
         shift: formShift,
         staff_id: formStaffId,
         staff_name: staff.find((s) => s.id === formStaffId)?.name ?? formStaffId,
-        total: calc.total,
-        contribution: calc.contribution,
-        glassware: calc.glassware,
-        captain_tip: calc.captain_tip,
-        to_deliver: calc.to_deliver,
+        total: Number(inserted.total) || 0,
+        contribution: Number(inserted.contribution) || 0,
+        glassware: Number(inserted.glassware) || 0,
+        captain_tip: Number(inserted.captain_tip) || 0,
+        to_deliver: Number(inserted.to_deliver) || 0,
       };
       setTodaySales((prev) => [record, ...prev]);
       setFormTotal('');

@@ -4,17 +4,24 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
+// ── Constantes de negocio (canon) ─────────────────────────────────────────────
+const APORTE_PCT = 4.5;
+const CRISTALERIA = 10.0;
+const CAPITAN_PCT = 0.8;
+
+function calcular(rawTotal: number) {
+  const total = isFinite(rawTotal) && rawTotal > 0 ? rawTotal : 0;
+  const contribution = Math.round(total * APORTE_PCT) / 100;
+  const captain_tip = Math.round(total * CAPITAN_PCT) / 100;
+  const to_deliver = Math.round((contribution + CRISTALERIA) * 100) / 100;
+  return { total, contribution, glassware: CRISTALERIA, captain_tip, to_deliver };
+}
+
 export interface SaleInput {
   sale_date: string;
   shift: 'Matutino' | 'Vespertino';
   staff_id: string;
   total: number;
-  pct: number;
-  glassware: number;
-  captain_pct: number;
-  contribution: number;
-  captain_tip: number;
-  to_deliver: number;
 }
 
 export interface SaleRow {
@@ -59,10 +66,24 @@ export async function submitSaleAction(data: SaleInput): Promise<SaleRow> {
     throw new Error('No autorizado: solo puedes registrar tu propia venta.');
   }
 
+  // Recalcular server-side — el cliente no dicta valores financieros
+  const calc = calcular(data.total);
+
   const admin = createAdminClient();
   const { data: inserted, error } = await admin
     .from('sales')
-    .insert(data)
+    .insert({
+      sale_date: data.sale_date,
+      shift: data.shift,
+      staff_id: data.staff_id,
+      total: calc.total,
+      pct: APORTE_PCT,
+      glassware: CRISTALERIA,
+      captain_pct: CAPITAN_PCT,
+      contribution: calc.contribution,
+      captain_tip: calc.captain_tip,
+      to_deliver: calc.to_deliver,
+    })
     .select()
     .single();
 

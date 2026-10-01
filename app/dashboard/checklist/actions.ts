@@ -44,6 +44,20 @@ export async function submitChecklistAction(
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
+  // Verificar rol: meseros solo pueden enviar en nombre propio
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const role = (profile as { role: string | null } | null)?.role ?? null;
+  const isManager = role === 'admin' || role === 'supervisor';
+
+  if (!isManager && data.staff_id !== user.id) {
+    throw new Error('No autorizado: solo puedes enviar el checklist a tu propio nombre.');
+  }
+
   const completedAt = new Date().toISOString();
   const checkedCount = data.checks.filter((c) => c.checked).length;
 

@@ -4,7 +4,73 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
-export type BreakStatus = 'completed' | 'overdue';
+export type BreakStatus = 'active' | 'completed' | 'overdue';
+
+export interface NewBreakResult {
+  id: string;
+  break_date: string;
+  staff_id: string;
+  started_at: string;
+  duration_minutes: number;
+  ended_at: null;
+  status: 'active';
+}
+
+// ── Iniciar comida ─────────────────────────────────────────────────────────────
+export async function startMealBreakAction(
+  staffId: string,
+): Promise<NewBreakResult> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect('/login');
+
+  const admin = createAdminClient();
+
+  // Verificar que staffId sea un perfil activo real
+  const { data: target } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('id', staffId)
+    .eq('active', true)
+    .single();
+
+  if (!target) {
+    throw new Error('Colaborador no encontrado o inactivo.');
+  }
+
+  const breakDate = new Date().toISOString().split('T')[0];
+  const startedAt = new Date().toISOString();
+
+  const { data: inserted, error } = await admin
+    .from('meal_breaks')
+    .insert({
+      break_date: breakDate,
+      staff_id: staffId,
+      started_at: startedAt,
+      duration_minutes: 30,
+      ended_at: null,
+      status: 'active',
+    })
+    .select()
+    .single();
+
+  if (error || !inserted) {
+    throw new Error(error?.message ?? 'Error al iniciar la comida.');
+  }
+
+  return {
+    id: (inserted as { id: string }).id,
+    break_date: breakDate,
+    staff_id: staffId,
+    started_at: startedAt,
+    duration_minutes: 30,
+    ended_at: null,
+    status: 'active',
+  };
+}
 
 export async function endMealBreakAction(
   breakId: string,

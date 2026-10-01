@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { endMealBreakAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 type BreakStatus = 'active' | 'completed' | 'overdue';
@@ -187,14 +188,21 @@ export default function ComidasClient({
     );
     const status: BreakStatus = elapsedS > DURATION_S ? 'overdue' : 'completed';
 
-    await supabase
-      .from('meal_breaks')
-      .update({ ended_at: endedAt, status })
-      .eq('id', breakId);
-
+    // Optimistic update
     setBreaks((prev) =>
       prev.map((b) => (b.id === breakId ? { ...b, ended_at: endedAt, status } : b)),
     );
+
+    try {
+      await endMealBreakAction(breakId, endedAt, status);
+    } catch {
+      // Revertir si el servidor rechaza (ownership / no autenticado)
+      setBreaks((prev) =>
+        prev.map((b) =>
+          b.id === breakId ? { ...b, ended_at: null, status: 'active' } : b,
+        ),
+      );
+    }
   }
 
   return (

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { saveShiftAction, copyPrevWeekAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 type Shift = 'Matutino' | 'Vespertino' | 'Descanso';
@@ -69,7 +70,13 @@ function scheduleKey(staffId: string, day: string): ScheduleKey {
 }
 
 // ── Componente ─────────────────────────────────────────────────────────────
-export default function HorariosClient({ staff }: { staff: StaffMember[] }) {
+export default function HorariosClient({
+  staff,
+  isManager,
+}: {
+  staff: StaffMember[];
+  isManager: boolean;
+}) {
   const supabase = useMemo(() => createClient(), []);
 
   const [weekStart, setWeekStart] = useState<Date>(() => getWeekStart(new Date()));
@@ -116,20 +123,27 @@ export default function HorariosClient({ staff }: { staff: StaffMember[] }) {
 
   // ── Asignar turno ──────────────────────────────────────────────────────
   async function handleShift(staffId: string, day: string, shift: Shift) {
+    if (!isManager) return;
     const k = scheduleKey(staffId, day);
+    const prev = schedules.get(k);
     // Actualización optimista
-    setSchedules((prev) => {
-      const next = new Map(prev);
-      next.set(k, shift);
-      return next;
-    });
-    await supabase
-      .from('schedules')
-      .upsert({ staff_id: staffId, day, shift }, { onConflict: 'staff_id,day' });
+    setSchedules((s) => { const n = new Map(s); n.set(k, shift); return n; });
+    try {
+      await saveShiftAction(staffId, day, shift);
+    } catch {
+      // Revertir si el servidor rechaza
+      setSchedules((s) => {
+        const n = new Map(s);
+        if (prev !== undefined) n.set(k, prev);
+        else n.delete(k);
+        return n;
+      });
+    }
   }
 
   // ── Copiar semana anterior ─────────────────────────────────────────────
   async function handleCopyPrev() {
+    if (!isManager) return;
     setCopyStatus('copying');
 
     const prevStart = addDays(weekStart, -7);
@@ -137,41 +151,19 @@ export default function HorariosClient({ staff }: { staff: StaffMember[] }) {
       toDateStr(addDays(prevStart, i)),
     );
 
-    const { data: prevData } = await supabase
-      .from('schedules')
-      .select('staff_id, day, shift')
-      .in('day', prevDays);
-
-    if (!prevData?.length) {
-      setCopyStatus('empty');
+    try {
+      const copied = await copyPrevWeekAction(weekDayStrs, prevDays);
+      if (copied.length === 0) {
+        setCopyStatus('empty');
+        setTimeout(() => setCopyStatus('idle'), 2500);
+        return;
+      }
+      await loadSchedules(weekDayStrs);
+      setCopyStatus('done');
       setTimeout(() => setCopyStatus('idle'), 2500);
-      return;
+    } catch {
+      setCopyStatus('idle');
     }
-
-    // Mapear cada registro al mismo índice de día de la semana actual
-    const rows = prevData
-      .map((s) => {
-        const idx = prevDays.indexOf(s.day as string);
-        if (idx === -1) return null;
-        return {
-          staff_id: s.staff_id as string,
-          day: weekDayStrs[idx],
-          shift: s.shift as Shift,
-        };
-      })
-      .filter(
-        (r): r is { staff_id: string; day: string; shift: Shift } => r !== null,
-      );
-
-    if (rows.length > 0) {
-      await supabase
-        .from('schedules')
-        .upsert(rows, { onConflict: 'staff_id,day' });
-    }
-
-    await loadSchedules(weekDayStrs);
-    setCopyStatus('done');
-    setTimeout(() => setCopyStatus('idle'), 2500);
   }
 
   const copyLabel =
@@ -229,14 +221,16 @@ export default function HorariosClient({ staff }: { staff: StaffMember[] }) {
           </button>
         </div>
 
-        {/* Copiar semana anterior */}
-        <button
-          onClick={handleCopyPrev}
-          disabled={copyStatus === 'copying'}
-          className={`w-full min-h-[44px] font-bold rounded-xl shadow transition text-sm ${copyClass}`}
-        >
-          {copyLabel}
-        </button>
+        {/* Copiar semana anterior — solo managers */}
+        {isManager && (
+          <button
+            onClick={handleCopyPrev}
+            disabled={copyStatus === 'copying'}
+            className={`w-full min-h-[44px] font-bold rounded-xl shadow transition text-sm ${copyClass}`}
+          >
+            {copyLabel}
+          </button>
+        )}
 
         {/* Leyenda */}
         <div className="flex gap-2 text-xs">
@@ -317,7 +311,8 @@ export default function HorariosClient({ staff }: { staff: StaffMember[] }) {
                             <button
                               key={shift}
                               onClick={() => handleShift(member.id, dayStr, shift)}
-                              className={`flex-1 min-h-[44px] rounded-lg text-xs font-semibold transition ${
+                              disabled={!isManager}
+                              className={`flex-1 min-h-[44px] rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${
                                 isActive ? style.on : style.off
                               }`}
                             >

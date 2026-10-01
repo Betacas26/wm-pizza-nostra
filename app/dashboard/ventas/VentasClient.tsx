@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { submitSaleAction, deleteSaleAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 type SaleShift = 'Matutino' | 'Vespertino';
@@ -303,9 +304,8 @@ export default function VentasClient({
     setSaving(true);
     const calc = calcular(rawTotal);
 
-    const { data: inserted, error } = await supabase
-      .from('sales')
-      .insert({
+    try {
+      const inserted = await submitSaleAction({
         sale_date: today,
         shift: formShift,
         staff_id: formStaffId,
@@ -316,13 +316,10 @@ export default function VentasClient({
         contribution: calc.contribution,
         captain_tip: calc.captain_tip,
         to_deliver: calc.to_deliver,
-      })
-      .select()
-      .single();
+      });
 
-    if (!error && inserted) {
       const record: SaleRecord = {
-        id: (inserted as { id: string }).id,
+        id: inserted.id,
         sale_date: today,
         shift: formShift,
         staff_id: formStaffId,
@@ -338,6 +335,8 @@ export default function VentasClient({
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2500);
       setActiveTab('hoy');
+    } catch {
+      // Error silenciado — la validación ocurre en el servidor
     }
 
     setSaving(false);
@@ -346,8 +345,12 @@ export default function VentasClient({
   // ── Eliminar venta (solo managers) ────────────────────────────────────
   async function handleDelete(id: string) {
     if (!window.confirm('¿Eliminar esta venta?')) return;
-    await supabase.from('sales').delete().eq('id', id);
-    setTodaySales((prev) => prev.filter((s) => s.id !== id));
+    try {
+      await deleteSaleAction(id);
+      setTodaySales((prev) => prev.filter((s) => s.id !== id));
+    } catch {
+      // Error silenciado — el servidor rechaza si no hay permiso
+    }
   }
 
   // ── Tab bar ────────────────────────────────────────────────────────────

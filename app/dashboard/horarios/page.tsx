@@ -16,18 +16,28 @@ export default async function HorariosPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  // Obtener todo el personal activo ordenado por nombre
-  const { data } = await supabase
-    .from('profiles')
-    .select('id, name, role')
-    .eq('active', true)
-    .order('name');
+  // Obtener personal activo y rol del usuario en paralelo
+  const [{ data: profilesData }, { data: meData }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, name, role')
+      .eq('active', true)
+      .order('name'),
+    supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single(),
+  ]);
 
-  const staff: StaffMember[] = (data ?? []).map((p: ProfileRow) => ({
+  const staff: StaffMember[] = (profilesData ?? []).map((p: ProfileRow) => ({
     id: p.id,
     name: p.name ?? '(sin nombre)',
     role: p.role ?? 'personal',
   }));
 
-  return <HorariosClient staff={staff} />;
+  const meRole = (meData as { role: string | null } | null)?.role ?? null;
+  const isManager = meRole === 'admin' || meRole === 'supervisor';
+
+  return <HorariosClient staff={staff} isManager={isManager} />;
 }

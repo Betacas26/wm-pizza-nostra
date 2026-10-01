@@ -91,12 +91,12 @@ export default async function DashboardPage() {
             <span className="text-xs text-stone-400">Colaboradores</span>
           </Link>
 
-          {/* ── Modulos proximos (no navegables) ───────────────────── */}
-          <div className={MODULE_CARD_DISABLED} aria-disabled="true">
+          {/* ── Modulos funcionales (continuación) ──────────────────── */}
+          <Link href="/dashboard/checklist" className={MODULE_CARD}>
             <span className="text-2xl block mb-1">&#128203;</span>
             <span className="font-bold text-sm block">Checklist</span>
-            <span className="text-xs text-stone-400">Proximo</span>
-          </div>
+            <span className="text-xs text-stone-400">Apertura y cierre</span>
+          </Link>
 
           <div className={`${MODULE_CARD_DISABLED} col-span-2`} aria-disabled="true">
             <span className="text-2xl block mb-1">&#11088;</span>

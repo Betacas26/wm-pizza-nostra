@@ -98,11 +98,11 @@ export default async function DashboardPage() {
             <span className="text-xs text-stone-400">Apertura y cierre</span>
           </Link>
 
-          <div className={`${MODULE_CARD_DISABLED} col-span-2`} aria-disabled="true">
+          <Link href="/dashboard/rubricas" className={`${MODULE_CARD} col-span-2`}>
             <span className="text-2xl block mb-1">&#11088;</span>
             <span className="font-bold text-sm block">Rubricas</span>
-            <span className="text-xs text-stone-400">Evaluacion &mdash; proximo</span>
-          </div>
+            <span className="text-xs text-stone-400">Evaluacion de desempeno</span>
+          </Link>
         </div>
       </main>
     </div>

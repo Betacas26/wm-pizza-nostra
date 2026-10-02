@@ -37,14 +37,56 @@ export interface VentasClientProps {
 }
 
 // ── Catálogo de productos ──────────────────────────────────────────────────
-const PRODUCT_CATALOG: Record<string, string[]> = {
-  Pizza:    ['Margarita', 'Pepperoni', 'Hawaiana', '4 Quesos', 'Vegetariana', 'BBQ Pollo'],
-  Pasta:    ['Spaghetti Bolognesa', 'Fettuccine Alfredo', 'Penne Arrabbiata'],
-  Bebida:   ['Refresco', 'Agua Natural', 'Cerveza', 'Vino Copa', 'Jugo Natural', 'Limonada'],
-  Entrada:  ['Ensalada Caesar', 'Pan de Ajo', 'Bruschetta', 'Tabla de Quesos'],
-  Postre:   ['Tiramisú', 'Panna Cotta', 'Helado', 'Cannoli'],
+interface Product { name: string; price: number }
+
+const PRODUCT_CATALOG: Record<string, Product[]> = {
+  Pizza:   [
+    { name: 'Margarita',      price: 180 },
+    { name: 'Pepperoni',      price: 200 },
+    { name: 'Hawaiana',       price: 195 },
+    { name: '4 Quesos',       price: 210 },
+    { name: 'Vegetariana',    price: 185 },
+    { name: 'BBQ Pollo',      price: 215 },
+  ],
+  Pasta:   [
+    { name: 'Spaghetti Bolognesa', price: 165 },
+    { name: 'Fettuccine Alfredo',  price: 170 },
+    { name: 'Penne Arrabbiata',    price: 155 },
+  ],
+  Bebida:  [
+    { name: 'Refresco',      price:  35 },
+    { name: 'Agua Natural',  price:  25 },
+    { name: 'Cerveza',       price:  55 },
+    { name: 'Vino Copa',     price:  90 },
+    { name: 'Jugo Natural',  price:  45 },
+    { name: 'Limonada',      price:  40 },
+  ],
+  Entrada: [
+    { name: 'Ensalada Caesar',  price:  95 },
+    { name: 'Pan de Ajo',       price:  65 },
+    { name: 'Bruschetta',       price:  80 },
+    { name: 'Tabla de Quesos',  price: 145 },
+  ],
+  Postre:  [
+    { name: 'Tiramisú',     price: 85 },
+    { name: 'Panna Cotta',  price: 75 },
+    { name: 'Helado',       price: 60 },
+    { name: 'Cannoli',      price: 70 },
+  ],
 };
 const CATEGORIES = Object.keys(PRODUCT_CATALOG);
+
+// Helpers de catálogo
+function findProduct(name: string): Product | undefined {
+  return Object.values(PRODUCT_CATALOG).flat().find((p) => p.name === name);
+}
+function findCategory(name: string): string {
+  return (
+    Object.entries(PRODUCT_CATALOG).find(([, prods]) =>
+      prods.some((p) => p.name === name),
+    )?.[0] ?? 'Otro'
+  );
+}
 
 // ── Constantes de negocio ──────────────────────────────────────────────────
 const APORTE_PCT = 4.5;
@@ -140,6 +182,14 @@ export default function VentasClient({
     [quantities],
   );
 
+  const totalValue = useMemo(() => {
+    let sum = 0;
+    for (const [name, qty] of quantities.entries()) {
+      sum += (findProduct(name)?.price ?? 0) * qty;
+    }
+    return sum;
+  }, [quantities]);
+
   function changeQty(productName: string, delta: number) {
     setQuantities((prev) => {
       const next = new Map(prev);
@@ -155,13 +205,12 @@ export default function VentasClient({
     if (!prodStaffId || quantities.size === 0) return;
     setProdSaving(true);
     try {
-      const items = [...quantities.entries()].map(([product_name, quantity]) => {
-        const category =
-          Object.entries(PRODUCT_CATALOG).find(([, prods]) =>
-            prods.includes(product_name),
-          )?.[0] ?? 'Otro';
-        return { category, product_name, quantity };
-      });
+      const items = [...quantities.entries()].map(([product_name, quantity]) => ({
+        category:   findCategory(product_name),
+        product_name,
+        quantity,
+        unit_price: findProduct(product_name)?.price ?? 0,
+      }));
       await saveProductSalesAction({ sale_date: today, staff_id: prodStaffId, items });
       setQuantities(new Map());
       setProdSavedMsg(true);
@@ -529,13 +578,18 @@ export default function VentasClient({
             {/* Productos de la categoría seleccionada */}
             <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
               <ul className="divide-y divide-[#223530]">
-                {PRODUCT_CATALOG[prodCategory].map((productName) => {
+                {PRODUCT_CATALOG[prodCategory].map(({ name: productName, price }) => {
                   const qty = quantities.get(productName) ?? 0;
                   return (
                     <li key={productName} className="px-4 py-3 flex items-center gap-3">
-                      <span className="flex-1 text-sm font-medium text-[#e6edea]">
-                        {productName}
-                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-[#e6edea] leading-tight">
+                          {productName}
+                        </p>
+                        <p className="text-xs text-[#7d9990] mt-0.5">
+                          {fmtMXN(price)}
+                        </p>
+                      </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
@@ -569,16 +623,30 @@ export default function VentasClient({
                   Seleccion actual
                 </p>
                 <div className="space-y-1">
-                  {[...quantities.entries()].map(([name, qty]) => (
-                    <div key={name} className="flex justify-between text-xs">
-                      <span className="text-[#7d9990]">{name}</span>
-                      <span className="font-semibold text-[#e6edea]">×{qty}</span>
-                    </div>
-                  ))}
+                  {[...quantities.entries()].map(([name, qty]) => {
+                    const price = findProduct(name)?.price ?? 0;
+                    return (
+                      <div key={name} className="flex justify-between text-xs">
+                        <span className="text-[#7d9990]">
+                          {name}
+                          <span className="opacity-60"> ×{qty}</span>
+                        </span>
+                        <span className="font-semibold text-[#e6edea]">
+                          {fmtMXN(price * qty)}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="mt-2 pt-2 border-t border-[#9E2A3E]/30 flex justify-between text-sm">
-                  <span className="font-bold text-[#e6edea]">Total piezas</span>
-                  <span className="font-mono font-bold text-[#E8899A]">{totalItems}</span>
+                <div className="mt-2 pt-2 border-t border-[#9E2A3E]/30 space-y-1">
+                  <div className="flex justify-between text-xs text-[#7d9990]">
+                    <span>Piezas</span>
+                    <span>{totalItems}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="font-bold text-[#e6edea]">Total estimado</span>
+                    <span className="font-mono font-bold text-[#E8899A]">{fmtMXN(totalValue)}</span>
+                  </div>
                 </div>
               </div>
             )}

@@ -16,6 +16,12 @@ ALTER TABLE public.product_sales
   ALTER COLUMN category     DROP DEFAULT,
   ALTER COLUMN product_name DROP DEFAULT;
 
+-- Precio unitario
+ALTER TABLE public.product_sales
+  ADD COLUMN IF NOT EXISTS unit_price numeric(10,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.product_sales
+  ALTER COLUMN unit_price DROP DEFAULT;
+
 -- Restricción de integridad
 ALTER TABLE public.product_sales
   DROP CONSTRAINT IF EXISTS product_sales_quantity_positive;

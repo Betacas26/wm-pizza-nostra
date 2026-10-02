@@ -3,7 +3,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
 
 export interface ProductRecord {
   id: string;
@@ -52,7 +51,6 @@ export async function createProductAction(
 
     if (error || !data) return { ok: false, error: error?.message ?? 'Error al crear producto.' };
 
-    revalidatePath('/dashboard/productos');
     return { ok: true, data: data as ProductRecord };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error desconocido.' };
@@ -72,7 +70,6 @@ export async function toggleProductAction(
 
     if (error) return { ok: false, error: error.message };
 
-    revalidatePath('/dashboard/productos');
     return { ok: true, data: undefined };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error desconocido.' };
@@ -89,7 +86,6 @@ export async function deleteProductAction(id: string): Promise<ActionResult> {
 
     if (error) return { ok: false, error: error.message };
 
-    revalidatePath('/dashboard/productos');
     return { ok: true, data: undefined };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : 'Error desconocido.' };

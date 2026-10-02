@@ -95,9 +95,8 @@ export default function PersonalClient({
     setProfiles((prev) =>
       prev.map((p) => (p.id === id ? { ...p, active: !current } : p)),
     );
-    try {
-      await setActiveAction(id, !current);
-    } catch {
+    const result = await setActiveAction(id, !current);
+    if (!result.ok) {
       setProfiles((prev) =>
         prev.map((p) => (p.id === id ? { ...p, active: current } : p)),
       );
@@ -110,9 +109,8 @@ export default function PersonalClient({
     setProfiles((prev) =>
       prev.map((p) => (p.id === profileId ? { ...p, home_area: newArea } : p)),
     );
-    try {
-      await setHomeAreaAction(profileId, newArea);
-    } catch {
+    const result = await setHomeAreaAction(profileId, newArea);
+    if (!result.ok) {
       setProfiles((prev) =>
         prev.map((p) => (p.id === profileId ? { ...p, home_area: prevArea } : p)),
       );
@@ -123,23 +121,21 @@ export default function PersonalClient({
     e.preventDefault();
     setCreating(true);
     setCreateError(null);
-    try {
-      const fd = new FormData();
-      fd.set('name', formName.trim());
-      fd.set('username', formUsername.trim());
-      fd.set('password', formPassword);
-      fd.set('role', formRole);
-      const created = await createStaffAction(fd);
-      setProfiles((prev) => [...prev, created]);
+    const fd = new FormData();
+    fd.set('name', formName.trim());
+    fd.set('username', formUsername.trim());
+    fd.set('password', formPassword);
+    fd.set('role', formRole);
+    const result = await createStaffAction(fd);
+    if (result.ok) {
+      setProfiles((prev) => [...prev, result.data]);
       setShowCreate(false);
       setFormName('');
       setFormUsername('');
       setFormPassword('');
       setFormRole('mesero');
-    } catch (err) {
-      setCreateError(
-        err instanceof Error ? err.message : 'Error al crear el colaborador.',
-      );
+    } else {
+      setCreateError(result.error);
     }
     setCreating(false);
   }

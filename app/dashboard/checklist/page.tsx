@@ -49,6 +49,7 @@ export default async function ChecklistPage() {
       .from('profiles')
       .select('id, name')
       .eq('active', true)
+      .in('role', ['mesero', 'ayudante'])
       .order('name'),
     supabase
       .from('closings')

@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { redirect } from 'next/navigation';
+
 
 export interface ProductRecord {
   id: string;
@@ -20,7 +20,7 @@ async function verifyManager() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) throw new Error('No autorizado.');
 
   const { data: profile } = await supabase
     .from('profiles')

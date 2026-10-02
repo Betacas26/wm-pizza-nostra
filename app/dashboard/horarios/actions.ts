@@ -19,7 +19,7 @@ async function verifyManager() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) throw new Error('No autorizado.');
 
   const { data: profile } = await supabase
     .from('profiles')

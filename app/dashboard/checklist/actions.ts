@@ -42,7 +42,7 @@ export async function submitChecklistAction(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) throw new Error('No autorizado.');
 
   // Verificar rol: meseros solo pueden enviar en nombre propio
   const { data: profile } = await supabase

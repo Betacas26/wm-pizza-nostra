@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
+
 
 // ── Tipos ───────────────────────────────────────────────────────────────────
 type Role = 'mesero' | 'ayudante' | 'hostess' | 'barrero' | 'supervisor' | 'admin';
@@ -22,7 +22,7 @@ async function verifyAdmin() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
+  if (!user) throw new Error('No autorizado.');
 
   const { data: profile } = await supabase
     .from('profiles')

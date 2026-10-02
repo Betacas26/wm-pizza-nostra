@@ -36,57 +36,6 @@ export interface VentasClientProps {
   today: string;
 }
 
-// ── Catálogo de productos ──────────────────────────────────────────────────
-interface Product { name: string; price: number }
-
-const PRODUCT_CATALOG: Record<string, Product[]> = {
-  Pizza:   [
-    { name: 'Margarita',      price: 180 },
-    { name: 'Pepperoni',      price: 200 },
-    { name: 'Hawaiana',       price: 195 },
-    { name: '4 Quesos',       price: 210 },
-    { name: 'Vegetariana',    price: 185 },
-    { name: 'BBQ Pollo',      price: 215 },
-  ],
-  Pasta:   [
-    { name: 'Spaghetti Bolognesa', price: 165 },
-    { name: 'Fettuccine Alfredo',  price: 170 },
-    { name: 'Penne Arrabbiata',    price: 155 },
-  ],
-  Bebida:  [
-    { name: 'Refresco',      price:  35 },
-    { name: 'Agua Natural',  price:  25 },
-    { name: 'Cerveza',       price:  55 },
-    { name: 'Vino Copa',     price:  90 },
-    { name: 'Jugo Natural',  price:  45 },
-    { name: 'Limonada',      price:  40 },
-  ],
-  Entrada: [
-    { name: 'Ensalada Caesar',  price:  95 },
-    { name: 'Pan de Ajo',       price:  65 },
-    { name: 'Bruschetta',       price:  80 },
-    { name: 'Tabla de Quesos',  price: 145 },
-  ],
-  Postre:  [
-    { name: 'Tiramisú',     price: 85 },
-    { name: 'Panna Cotta',  price: 75 },
-    { name: 'Helado',       price: 60 },
-    { name: 'Cannoli',      price: 70 },
-  ],
-};
-const CATEGORIES = Object.keys(PRODUCT_CATALOG);
-
-// Helpers de catálogo
-function findProduct(name: string): Product | undefined {
-  return Object.values(PRODUCT_CATALOG).flat().find((p) => p.name === name);
-}
-function findCategory(name: string): string {
-  return (
-    Object.entries(PRODUCT_CATALOG).find(([, prods]) =>
-      prods.some((p) => p.name === name),
-    )?.[0] ?? 'Otro'
-  );
-}
 
 // ── Constantes de negocio ──────────────────────────────────────────────────
 const APORTE_PCT = 4.5;
@@ -172,23 +121,32 @@ export default function VentasClient({
 
   // ── Productos del Día state ─────────────────────────────────────────────
   const [prodStaffId, setProdStaffId] = useState(staff[0]?.id ?? '');
-  const [prodCategory, setProdCategory] = useState(CATEGORIES[0]);
+  const [dbProducts, setDbProducts] = useState<{ id: string; name: string; category: string }[]>([]);
+  const [dbProductsLoading, setDbProductsLoading] = useState(true);
+  const [selectedProductName, setSelectedProductName] = useState('');
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
   const [prodSaving, setProdSaving] = useState(false);
   const [prodSavedMsg, setProdSavedMsg] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from('products')
+      .select('id, name, category')
+      .eq('active', true)
+      .order('category', { ascending: true })
+      .order('name', { ascending: true })
+      .then(({ data }) => {
+        const products = (data ?? []) as { id: string; name: string; category: string }[];
+        setDbProducts(products);
+        if (products.length > 0) setSelectedProductName(products[0].name);
+        setDbProductsLoading(false);
+      });
+  }, [supabase]);
 
   const totalItems = useMemo(
     () => [...quantities.values()].reduce((a, b) => a + b, 0),
     [quantities],
   );
-
-  const totalValue = useMemo(() => {
-    let sum = 0;
-    for (const [name, qty] of quantities.entries()) {
-      sum += (findProduct(name)?.price ?? 0) * qty;
-    }
-    return sum;
-  }, [quantities]);
 
   function changeQty(productName: string, delta: number) {
     setQuantities((prev) => {
@@ -201,15 +159,19 @@ export default function VentasClient({
     });
   }
 
+  function handleAddProduct() {
+    if (!selectedProductName) return;
+    changeQty(selectedProductName, 1);
+  }
+
   async function handleSaveProductos() {
     if (!prodStaffId || quantities.size === 0) return;
     setProdSaving(true);
     try {
       const items = [...quantities.entries()].map(([product_name, quantity]) => ({
-        category:   findCategory(product_name),
+        category: dbProducts.find((p) => p.name === product_name)?.category ?? 'General',
         product_name,
         quantity,
-        unit_price: findProduct(product_name)?.price ?? 0,
       }));
       await saveProductSalesAction({ sale_date: today, staff_id: prodStaffId, items });
       setQuantities(new Map());
@@ -550,57 +512,72 @@ export default function VentasClient({
               >
                 <option value="">Seleccionar...</option>
                 {staff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
+                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
             </div>
 
-            {/* Filtro de categoría */}
-            <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setProdCategory(cat)}
-                  className={`shrink-0 h-9 px-3 rounded-xl border text-xs font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
-                    prodCategory === cat
-                      ? 'bg-[#7A1D2E] border-[#9E2A3E]/60 text-white'
-                      : 'bg-[#1c2b27] border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
+            {/* Agregar producto */}
+            <div>
+              <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
+                Agregar producto
+              </label>
+              {dbProductsLoading ? (
+                <p className="text-xs text-[#7d9990] py-2">Cargando catalogo...</p>
+              ) : dbProducts.length === 0 ? (
+                <p className="text-xs text-[#7d9990] py-2">
+                  Sin productos activos.{' '}
+                  <a href="/dashboard/productos" className="text-[#E8899A] underline">
+                    Configurar en Productos
+                  </a>
+                </p>
+              ) : (
+                <div className="flex gap-2">
+                  <select
+                    value={selectedProductName}
+                    onChange={(e) => setSelectedProductName(e.target.value)}
+                    className="flex-1 min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+                  >
+                    {dbProducts.map((p) => (
+                      <option key={p.id} value={p.name}>{p.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleAddProduct}
+                    disabled={!selectedProductName}
+                    className="shrink-0 min-h-[44px] px-4 bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out disabled:opacity-40 text-sm"
+                  >
+                    + Agregar
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Productos de la categoría seleccionada */}
-            <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
-              <ul className="divide-y divide-[#223530]">
-                {PRODUCT_CATALOG[prodCategory].map(({ name: productName, price }) => {
-                  const qty = quantities.get(productName) ?? 0;
-                  return (
+            {/* Lista de productos agregados */}
+            {quantities.size > 0 && (
+              <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+                <div className="px-4 py-2.5 border-b border-[#223530]">
+                  <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
+                    Productos seleccionados
+                  </p>
+                </div>
+                <ul className="divide-y divide-[#223530]">
+                  {[...quantities.entries()].map(([productName, qty]) => (
                     <li key={productName} className="px-4 py-3 flex items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[#e6edea] leading-tight">
-                          {productName}
-                        </p>
-                        <p className="text-xs text-[#7d9990] mt-0.5">
-                          {fmtMXN(price)}
-                        </p>
-                      </div>
+                      <p className="flex-1 text-sm font-medium text-[#e6edea] min-w-0 leading-tight">
+                        {productName}
+                      </p>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
                           type="button"
                           onClick={() => changeQty(productName, -1)}
-                          disabled={qty === 0}
-                          className="w-9 h-9 rounded-xl bg-[#1c2b27] border border-[#223530] text-[#e6edea] font-bold text-lg flex items-center justify-center active:scale-[0.95] disabled:opacity-30 transition"
+                          className="w-9 h-9 rounded-xl bg-[#1c2b27] border border-[#223530] text-[#e6edea] font-bold text-lg flex items-center justify-center active:scale-[0.95] transition"
                         >
                           −
                         </button>
-                        <span className={`w-7 text-center font-mono font-bold text-base ${qty > 0 ? 'text-[#E8899A]' : 'text-[#7d9990]'}`}>
-                          {qty > 0 ? qty : '—'}
+                        <span className="w-7 text-center font-mono font-bold text-base text-[#E8899A]">
+                          {qty}
                         </span>
                         <button
                           type="button"
@@ -611,42 +588,11 @@ export default function VentasClient({
                         </button>
                       </div>
                     </li>
-                  );
-                })}
-              </ul>
-            </div>
-
-            {/* Resumen selección */}
-            {totalItems > 0 && (
-              <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl px-4 py-3">
-                <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-2">
-                  Seleccion actual
-                </p>
-                <div className="space-y-1">
-                  {[...quantities.entries()].map(([name, qty]) => {
-                    const price = findProduct(name)?.price ?? 0;
-                    return (
-                      <div key={name} className="flex justify-between text-xs">
-                        <span className="text-[#7d9990]">
-                          {name}
-                          <span className="opacity-60"> ×{qty}</span>
-                        </span>
-                        <span className="font-semibold text-[#e6edea]">
-                          {fmtMXN(price * qty)}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-                <div className="mt-2 pt-2 border-t border-[#9E2A3E]/30 space-y-1">
-                  <div className="flex justify-between text-xs text-[#7d9990]">
-                    <span>Piezas</span>
-                    <span>{totalItems}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="font-bold text-[#e6edea]">Total estimado</span>
-                    <span className="font-mono font-bold text-[#E8899A]">{fmtMXN(totalValue)}</span>
-                  </div>
+                  ))}
+                </ul>
+                <div className="px-4 py-2.5 border-t border-[#223530] flex justify-between items-center">
+                  <span className="text-xs text-[#7d9990]">Total</span>
+                  <span className="font-mono font-bold text-[#E8899A]">{totalItems} piezas</span>
                 </div>
               </div>
             )}

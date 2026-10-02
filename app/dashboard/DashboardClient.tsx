@@ -12,6 +12,7 @@ import {
   Star,
   BarChart2,
   LogOut,
+  Package,
 } from 'lucide-react';
 import { signOutAction } from './actions';
 
@@ -39,9 +40,10 @@ const TURNO: Module[] = [
 ];
 
 const GESTION: Module[] = [
-  { href: '/dashboard/horarios',  Icon: Clock,  title: 'Horarios',  sub: 'Turnos semanales' },
-  { href: '/dashboard/personal',  Icon: Users,  title: 'Personal',  sub: 'Colaboradores' },
-  { href: '/dashboard/rubricas',  Icon: Star,   title: 'Rubricas',  sub: 'Evaluacion' },
+  { href: '/dashboard/horarios',  Icon: Clock,   title: 'Horarios',  sub: 'Turnos semanales' },
+  { href: '/dashboard/personal',  Icon: Users,   title: 'Personal',  sub: 'Colaboradores' },
+  { href: '/dashboard/rubricas',  Icon: Star,    title: 'Rubricas',  sub: 'Evaluacion' },
+  { href: '/dashboard/productos', Icon: Package, title: 'Productos', sub: 'Catalogo de ventas' },
 ];
 
 export default function DashboardClient({ userName, userRole, isManager }: Props) {

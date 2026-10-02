@@ -121,7 +121,7 @@ export async function deleteSaleAction(id: string): Promise<void> {
 export interface ProductSaleInput {
   sale_date: string;
   staff_id: string;
-  items: { category: string; product_name: string; quantity: number; unit_price: number }[];
+  items: { category: string; product_name: string; quantity: number }[];
 }
 
 export async function saveProductSalesAction(data: ProductSaleInput): Promise<void> {
@@ -137,7 +137,6 @@ export async function saveProductSalesAction(data: ProductSaleInput): Promise<vo
     category: item.category,
     product_name: item.product_name,
     quantity: item.quantity,
-    unit_price: item.unit_price,
   }));
 
   const admin = createAdminClient();

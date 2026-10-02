@@ -205,6 +205,75 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     { key: 'ranking', label: 'Ranking' },
   ];
 
+  function handlePrint() {
+    const monthLabel =
+      monthOptions.find((o) => o.value === selectedMonth)?.label ?? selectedMonth;
+
+    let body = '';
+
+    if (tab === 'ventas') {
+      body += `<h2>Ventas por Mesero</h2><table><thead><tr><th>Mesero</th><th>Registros</th><th>Total Ventas</th><th>Aporte</th><th>A Entregar</th></tr></thead><tbody>`;
+      for (const s of staffSummaries) {
+        body += `<tr><td>${s.name}</td><td>${s.count}</td><td>${fmtMXN(s.total)}</td><td>${fmtMXN(s.contribution)}</td><td>${fmtMXN(s.to_deliver)}</td></tr>`;
+      }
+      body += `<tr class="total"><td>Total</td><td>${grandTotals.count}</td><td>${fmtMXN(grandTotals.total)}</td><td></td><td>${fmtMXN(grandTotals.to_deliver)}</td></tr>`;
+      body += `</tbody></table>`;
+    } else if (tab === 'capitan') {
+      body += `<h2>Propinas Capitan</h2><table><thead><tr><th>Fecha</th><th>Ventas</th><th>Capitan</th></tr></thead><tbody>`;
+      for (const d of daySummaries) {
+        body += `<tr><td>${d.sale_date}</td><td>${fmtMXN(d.ventas_total)}</td><td>${fmtMXN(d.captain_total)}</td></tr>`;
+      }
+      body += `<tr class="total"><td>Total</td><td></td><td>${fmtMXN(grandTotals.captain_tip)}</td></tr>`;
+      body += `</tbody></table>`;
+    } else if (tab === 'bonos') {
+      const withBonos = staffSummaries.filter((s) => s.sanction_amount > 0);
+      body += `<h2>Bonos por Sancion</h2>`;
+      if (withBonos.length === 0) {
+        body += `<p>Sin bonos en este mes.</p>`;
+      } else {
+        body += `<table><thead><tr><th>Mesero</th><th>Ventas</th><th>Registros</th><th>Bono Retenido</th></tr></thead><tbody>`;
+        for (const s of withBonos) {
+          body += `<tr><td>${s.name}</td><td>${fmtMXN(s.total)}</td><td>${s.count}</td><td>${fmtMXN(s.sanction_amount)}</td></tr>`;
+        }
+        body += `<tr class="total"><td colspan="3">Total</td><td>${fmtMXN(grandTotals.sanction_amount)}</td></tr>`;
+        body += `</tbody></table>`;
+      }
+    } else if (tab === 'ranking') {
+      body += `<h2>Ranking de Ventas</h2><table><thead><tr><th>#</th><th>Mesero</th><th>Registros</th><th>Total Ventas</th><th>A Entregar</th></tr></thead><tbody>`;
+      for (const [i, s] of staffSummaries.entries()) {
+        body += `<tr><td>${i + 1}</td><td>${s.name}</td><td>${s.count}</td><td>${fmtMXN(s.total)}</td><td>${fmtMXN(s.to_deliver)}</td></tr>`;
+      }
+      body += `</tbody></table>`;
+    }
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<title>Reporte — ${monthLabel}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; font-size: 12px; color: #111; padding: 20px; }
+  h1 { font-size: 18px; margin-bottom: 2px; }
+  .sub { color: #666; font-size: 12px; margin-bottom: 16px; }
+  h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  th, td { padding: 5px 8px; border: 1px solid #ddd; text-align: left; }
+  th { background: #f4f4f4; font-weight: 600; }
+  tr.total td { font-weight: 700; background: #f9f9f9; }
+  @media print { body { padding: 10px; } }
+</style></head><body>
+<h1>WM Pizza Nostra — Reportes</h1>
+<p class="sub">${monthLabel} &middot; Generado ${new Date().toLocaleString('es-MX')}</p>
+${body}
+</body></html>`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      setTimeout(() => win.print(), 300);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
@@ -224,6 +293,14 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
             {monthOptions.find((o) => o.value === selectedMonth)?.label ?? selectedMonth}
           </p>
         </div>
+        {staffSummaries.length > 0 && (
+          <button
+            onClick={handlePrint}
+            className="shrink-0 h-9 px-3 rounded-xl border border-[#223530] bg-[#1c2b27] text-xs font-semibold text-[#7d9990] hover:text-[#e6edea] transition"
+          >
+            ⎙ PDF
+          </button>
+        )}
       </header>
 
       {/* Subtabs */}

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
 import MesasClient from './MesasClient';
+import type { MeseroData } from './MesasClient';
 
 // ── Constantes de área ─────────────────────────────────────────────────────
 type Area = 'PB' | 'PA' | 'TE';
@@ -26,13 +27,6 @@ interface Mesero {
   id: string;
   name: string;
   home_area: string | null;
-}
-
-interface WorkerSlot {
-  id: string;
-  name: string;
-  tables: string[];
-  isHome: boolean;
 }
 
 // ── Algoritmo de asignación ────────────────────────────────────────────────
@@ -213,52 +207,8 @@ export default async function MesasPage() {
 
   const hasSaved = (savedRows?.length ?? 0) > 0;
 
-  // ── Construir mapa de display ──────────────────────────────────────────
+  // Mapa auxiliar para resolución de nombres en alertas
   const meseroById = new Map<string, Mesero>(meseros.map((m) => [m.id, m]));
-
-  // Mapa: area → lista de workers
-  const byAreaDisplay = new Map<Area, WorkerSlot[]>(
-    AREA_ORDER.map((a) => [a, []]),
-  );
-
-  if (hasSaved && savedRows) {
-    // Reconstruir desde BD
-    const staffTableMap = new Map<string, string[]>();
-    for (const row of savedRows) {
-      if (!staffTableMap.has(row.staff_id)) staffTableMap.set(row.staff_id, []);
-      staffTableMap.get(row.staff_id)!.push(row.table_code);
-    }
-
-    for (const [staffId, tables] of staffTableMap.entries()) {
-      const mesero = meseroById.get(staffId);
-      // Inferir área por la primera mesa
-      const area = (Object.entries(AREA_TABLES) as [Area, string[]][]).find(
-        ([, ts]) => ts.includes(tables[0]),
-      )?.[0];
-      if (!area) continue;
-
-      // Ordenar según AREA_TABLES para consistencia visual
-      const ordered = AREA_TABLES[area].filter((t) => tables.includes(t));
-      byAreaDisplay.get(area)!.push({
-        id: staffId,
-        name: mesero?.name ?? staffId,
-        tables: ordered,
-        isHome: mesero?.home_area === area,
-      });
-    }
-  } else {
-    // Usar asignación computada
-    const computed = computeAssignment(meseros);
-    for (const [staffId, { tables, area }] of computed.entries()) {
-      const mesero = meseroById.get(staffId);
-      byAreaDisplay.get(area)!.push({
-        id: staffId,
-        name: mesero?.name ?? staffId,
-        tables,
-        isHome: mesero?.home_area === area,
-      });
-    }
-  }
 
   // ── Alertas de rotación semanal (spec §1: máx. 2 repeticiones/área/semana) ──
   interface WeekOvg { name: string; area: string; count: number }
@@ -284,26 +234,35 @@ export default async function MesasPage() {
     }
   }
 
+  const initialAssignments = (savedRows ?? []).map(
+    (r: { table_code: string; staff_id: string }) => ({
+      tableCode: r.table_code,
+      staffId: r.staff_id,
+    }),
+  );
+
+  const meseroData: MeseroData[] = meseros;
+
   return (
-    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
+    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
+      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
-          className="text-stone-400 hover:text-stone-700 text-xl leading-none"
+          className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
           aria-label="Volver"
         >
           &#8592;
         </Link>
         <div>
-          <h1 className="font-extrabold text-amber-600 text-lg leading-tight">
+          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
             Asignacion de Mesas
           </h1>
-          <p className="text-xs text-stone-500">
+          <p className="text-xs text-[#7d9990]">
             {today} &middot; {meseros.length} mesero
             {meseros.length !== 1 ? 's' : ''} activos
             {hasSaved && (
-              <span className="ml-1 text-emerald-600 font-semibold">
+              <span className="ml-1 text-emerald-400 font-semibold">
                 &middot; Guardada
               </span>
             )}
@@ -312,24 +271,20 @@ export default async function MesasPage() {
       </header>
 
       <main className="p-4 max-w-xl mx-auto space-y-4">
-        {/* Boton de accion */}
+        {/* Boton de auto-asignacion */}
         <form action={autoAssignAction}>
           <button
             type="submit"
-            className="w-full min-h-[44px] py-3.5 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition duration-150 ease-out select-none text-sm"
+            className="w-full min-h-[44px] py-3.5 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm"
           >
             {hasSaved ? 'Regenerar asignacion' : 'Asignar automaticamente'}
           </button>
         </form>
 
         <MesasClient
-          areasData={AREA_ORDER.map((area) => ({
-            area,
-            label: AREA_LABELS[area],
-            totalTables: AREA_TABLES[area].length,
-            workers: byAreaDisplay.get(area) ?? [],
-          }))}
-          noMeseros={meseros.length === 0}
+          meseros={meseroData}
+          initialAssignments={initialAssignments}
+          today={today}
           weeklyOverages={weeklyOverages}
         />
       </main>

@@ -43,12 +43,20 @@ const CAPITAN_PCT = 0.8;
 
 function calcular(rawTotal: number, rawSanctionPct = 0) {
   const total = isFinite(rawTotal) && rawTotal > 0 ? rawTotal : 0;
-  const sanctionPct = isFinite(rawSanctionPct) && rawSanctionPct > 0 ? rawSanctionPct : 0;
+  const sanctionPct =
+    isFinite(rawSanctionPct) && rawSanctionPct > 0 ? rawSanctionPct : 0;
   const contribution = Math.round(total * APORTE_PCT) / 100;
   const captain_tip = Math.round(total * CAPITAN_PCT) / 100;
   const to_deliver = Math.round((contribution + CRISTALERIA) * 100) / 100;
   const sanction_amount = Math.round(total * sanctionPct) / 100;
-  return { total, contribution, glassware: CRISTALERIA, captain_tip, to_deliver, sanction_amount };
+  return {
+    total,
+    contribution,
+    glassware: CRISTALERIA,
+    captain_tip,
+    to_deliver,
+    sanction_amount,
+  };
 }
 
 function fmtMXN(n: number): string {
@@ -84,6 +92,27 @@ function exportarCSV(records: SaleRecord[], monthLabel: string) {
   URL.revokeObjectURL(url);
 }
 
+// ── Keypad ─────────────────────────────────────────────────────────────────
+const KEYPAD_KEYS = ['1','2','3','4','5','6','7','8','9','.','0','⌫'];
+
+function KeypadButton({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onPress}
+      className="h-14 rounded-xl bg-[#1c2b27] border border-[#223530] text-[#e6edea] font-bold text-xl active:scale-[0.95] active:bg-[#223530] transition duration-100 ease-out select-none"
+    >
+      {label}
+    </button>
+  );
+}
+
 // ── Componente ─────────────────────────────────────────────────────────────
 export default function VentasClient({
   staff,
@@ -110,7 +139,25 @@ export default function VentasClient({
     return calcular(n, s);
   }, [formTotal, formSanctionPct]);
 
-  // ── Ventas del día ─────────────────────────────────────────────────────
+  // ── Keypad handler ─────────────────────────────────────────────────────
+  function handleKeypad(key: string) {
+    if (key === '⌫') {
+      setFormTotal((prev) => prev.slice(0, -1));
+      return;
+    }
+    if (key === '.') {
+      setFormTotal((prev) => (prev.includes('.') ? prev : prev + '.'));
+      return;
+    }
+    setFormTotal((prev) => {
+      if (prev.length >= 9) return prev;
+      const dotIdx = prev.indexOf('.');
+      if (dotIdx !== -1 && prev.length - dotIdx > 2) return prev;
+      return prev + key;
+    });
+  }
+
+  // ── Ventas del dia ─────────────────────────────────────────────────────
   const [todaySales, setTodaySales] = useState<SaleRecord[]>(initialSales);
 
   // ── Resumen mensual ────────────────────────────────────────────────────
@@ -161,7 +208,9 @@ export default function VentasClient({
         return;
       }
 
-      const staffIds = [...new Set((salesData as { staff_id: string }[]).map((s) => s.staff_id))];
+      const staffIds = [
+        ...new Set((salesData as { staff_id: string }[]).map((s) => s.staff_id)),
+      ];
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, name')
@@ -169,16 +218,24 @@ export default function VentasClient({
 
       const nameMap = new Map<string, string>(
         (profilesData ?? []).map((p: { id: string; name: string | null }) => [
-          p.id, p.name ?? '(sin nombre)',
+          p.id,
+          p.name ?? '(sin nombre)',
         ]),
       );
 
       const records: SaleRecord[] = (
         salesData as {
-          id: string; sale_date: string; shift: string; staff_id: string;
-          total: number | null; contribution: number | null; glassware: number | null;
-          captain_tip: number | null; to_deliver: number | null;
-          sanction_pct: number | null; sanction_amount: number | null;
+          id: string;
+          sale_date: string;
+          shift: string;
+          staff_id: string;
+          total: number | null;
+          contribution: number | null;
+          glassware: number | null;
+          captain_tip: number | null;
+          to_deliver: number | null;
+          sanction_pct: number | null;
+          sanction_amount: number | null;
         }[]
       ).map((s) => ({
         id: s.id,
@@ -210,8 +267,14 @@ export default function VentasClient({
   // ── Agregado mensual ───────────────────────────────────────────────────
   const monthSummary = useMemo(() => {
     type StaffAgg = {
-      name: string; count: number; total: number; contribution: number;
-      glassware: number; to_deliver: number; captain_tip: number; sanction_amount: number;
+      name: string;
+      count: number;
+      total: number;
+      contribution: number;
+      glassware: number;
+      to_deliver: number;
+      captain_tip: number;
+      sanction_amount: number;
     };
     const byStaff = new Map<string, StaffAgg>();
 
@@ -227,32 +290,46 @@ export default function VentasClient({
         existing.sanction_amount += s.sanction_amount;
       } else {
         byStaff.set(s.staff_id, {
-          name: s.staff_name, count: 1,
-          total: s.total, contribution: s.contribution,
-          glassware: s.glassware, to_deliver: s.to_deliver,
-          captain_tip: s.captain_tip, sanction_amount: s.sanction_amount,
+          name: s.staff_name,
+          count: 1,
+          total: s.total,
+          contribution: s.contribution,
+          glassware: s.glassware,
+          to_deliver: s.to_deliver,
+          captain_tip: s.captain_tip,
+          sanction_amount: s.sanction_amount,
         });
       }
     }
 
-    let grandTotal = 0, grandContrib = 0, grandGlass = 0, grandDeliver = 0,
-        grandCaptain = 0, grandSanction = 0;
+    let grandTotal = 0,
+      grandContrib = 0,
+      grandGlass = 0,
+      grandDeliver = 0,
+      grandCaptain = 0,
+      grandSanction = 0;
     for (const v of byStaff.values()) {
-      grandTotal += v.total; grandContrib += v.contribution;
-      grandGlass += v.glassware; grandDeliver += v.to_deliver;
-      grandCaptain += v.captain_tip; grandSanction += v.sanction_amount;
+      grandTotal += v.total;
+      grandContrib += v.contribution;
+      grandGlass += v.glassware;
+      grandDeliver += v.to_deliver;
+      grandCaptain += v.captain_tip;
+      grandSanction += v.sanction_amount;
     }
 
     const r = (n: number) => Math.round(n * 100) / 100;
     return {
       byStaff,
-      grandTotal: r(grandTotal), grandContrib: r(grandContrib),
-      grandGlass: r(grandGlass), grandDeliver: r(grandDeliver),
-      grandCaptain: r(grandCaptain), grandSanction: r(grandSanction),
+      grandTotal: r(grandTotal),
+      grandContrib: r(grandContrib),
+      grandGlass: r(grandGlass),
+      grandDeliver: r(grandDeliver),
+      grandCaptain: r(grandCaptain),
+      grandSanction: r(grandSanction),
     };
   }, [monthSales]);
 
-  // ── Totales del día ────────────────────────────────────────────────────
+  // ── Totales del dia ────────────────────────────────────────────────────
   const dayTotals = useMemo(() => {
     const r = (n: number) => Math.round(n * 100) / 100;
     return {
@@ -285,7 +362,8 @@ export default function VentasClient({
         sale_date: today,
         shift: formShift,
         staff_id: formStaffId,
-        staff_name: staff.find((s) => s.id === formStaffId)?.name ?? formStaffId,
+        staff_name:
+          staff.find((s) => s.id === formStaffId)?.name ?? formStaffId,
         total: Number(inserted.total) || 0,
         contribution: Number(inserted.contribution) || 0,
         glassware: Number(inserted.glassware) || 0,
@@ -318,7 +396,6 @@ export default function VentasClient({
     }
   }
 
-  // ── Tab bar ────────────────────────────────────────────────────────────
   const tabs: { key: ActiveTab; label: string }[] = [
     { key: 'registrar', label: 'Registrar' },
     { key: 'hoy', label: `Hoy\u00a0(${todaySales.length})` },
@@ -326,36 +403,40 @@ export default function VentasClient({
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
+    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
+      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
-          className="text-stone-400 hover:text-stone-700 text-xl leading-none"
+          className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
           aria-label="Volver"
         >
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-600 text-lg leading-tight">Ventas</h1>
-          <p className="text-xs text-stone-500">{today}</p>
+          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+            Ventas
+          </h1>
+          <p className="text-xs text-[#7d9990]">{today}</p>
         </div>
         {savedMsg && (
-          <span className="text-xs font-semibold text-emerald-600">&#10003; Guardado</span>
+          <span className="text-xs font-semibold text-emerald-400">
+            &#10003; Guardado
+          </span>
         )}
       </header>
 
-      {/* Tabs — segmented control */}
-      <div className="bg-white border-b border-stone-200 sticky top-[57px] z-10 px-4 py-2">
-        <div className="p-1 bg-stone-100 rounded-xl flex">
+      {/* Tabs */}
+      <div className="bg-[#141f1c] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
+        <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
               className={`flex-1 h-9 rounded-lg text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
                 activeTab === tab.key
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-500 hover:text-stone-700'
+                  ? 'bg-[#1c2b27] text-[#e6edea] shadow-sm'
+                  : 'text-[#7d9990] hover:text-[#e6edea]'
               }`}
             >
               {tab.label}
@@ -371,25 +452,27 @@ export default function VentasClient({
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
             {/* Mesero */}
             <div>
-              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
                 Mesero
               </label>
               <select
                 value={formStaffId}
                 onChange={(e) => setFormStaffId(e.target.value)}
                 required
-                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base bg-white"
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
               >
                 <option value="">Seleccionar...</option>
                 {staff.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
                 ))}
               </select>
             </div>
 
             {/* Turno */}
             <div>
-              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+              <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
                 Turno
               </label>
               <div className="flex gap-2">
@@ -398,12 +481,12 @@ export default function VentasClient({
                     key={s}
                     type="button"
                     onClick={() => setFormShift(s)}
-                    className={`flex-1 min-h-[44px] rounded-xl font-semibold text-sm transition ${
+                    className={`flex-1 min-h-[44px] rounded-xl font-semibold text-sm transition duration-150 ease-out active:scale-[0.98] select-none ${
                       formShift === s
                         ? s === 'Matutino'
                           ? 'bg-amber-500 text-white shadow-sm'
-                          : 'bg-sky-500 text-white shadow-sm'
-                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                          : 'bg-sky-600 text-white shadow-sm'
+                        : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
                     }`}
                   >
                     {s}
@@ -412,29 +495,82 @@ export default function VentasClient({
               </div>
             </div>
 
-            {/* Venta total */}
+            {/* Teclado POS */}
             <div>
-              <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                Venta Total ($)
+              <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
+                Venta Total
               </label>
-              <input
-                type="number"
-                inputMode="decimal"
-                min="0"
-                step="0.01"
-                value={formTotal}
-                onChange={(e) => setFormTotal(e.target.value)}
-                placeholder="0.00"
-                required
-                className="w-full min-h-[56px] px-3 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-2xl font-mono text-center font-bold text-stone-900"
-              />
+
+              {/* Display del monto */}
+              <div className="bg-[#0a0f0e] border border-[#223530] rounded-xl px-4 py-3 mb-3 text-center">
+                <span className="font-mono font-black text-3xl text-[#e6edea] tracking-tight">
+                  ${formTotal || '0'}
+                </span>
+              </div>
+
+              {/* Vista previa en vivo */}
+              {liveCalc ? (
+                <div className="bg-[#1c2b27] border border-[#223530] rounded-xl px-4 py-3 mb-3 space-y-2">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[#7d9990]">Aporte ({APORTE_PCT}%)</span>
+                    <span className="font-semibold text-[#e6edea]">
+                      {fmtMXN(liveCalc.contribution)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[#7d9990]">Cristaleria (fijo)</span>
+                    <span className="font-semibold text-[#e6edea]">
+                      {fmtMXN(liveCalc.glassware)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm border-t border-[#223530] pt-2">
+                    <span className="font-bold text-[#e6edea]">Total a entregar</span>
+                    <span className="font-mono font-bold text-xl text-amber-500">
+                      {fmtMXN(liveCalc.to_deliver)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs pt-0.5">
+                    <span className="text-[#7d9990] italic">
+                      Propina Capitan ({CAPITAN_PCT}% — info)
+                    </span>
+                    <span className="text-[#7d9990] italic">
+                      {fmtMXN(liveCalc.captain_tip)}
+                    </span>
+                  </div>
+                  {liveCalc.sanction_amount > 0 && (
+                    <div className="flex justify-between text-xs bg-orange-950/40 border border-orange-800/50 rounded-xl px-3 py-2 mt-1">
+                      <span className="text-orange-300 font-semibold">
+                        Bono sancion ({parseFloat(formSanctionPct).toFixed(1)}%) — retenido
+                      </span>
+                      <span className="text-orange-300 font-bold">
+                        {fmtMXN(liveCalc.sanction_amount)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="bg-[#0a0f0e] border border-dashed border-[#223530] rounded-xl p-3 text-center text-xs text-[#7d9990] mb-3">
+                  Ingresa el monto para ver el calculo
+                </div>
+              )}
+
+              {/* Teclado numerico */}
+              <div className="grid grid-cols-3 gap-2">
+                {KEYPAD_KEYS.map((key) => (
+                  <KeypadButton
+                    key={key}
+                    label={key}
+                    onPress={() => handleKeypad(key)}
+                  />
+                ))}
+              </div>
             </div>
 
-            {/* Sanción (solo managers) */}
+            {/* Sancion (solo managers) */}
             {isManager && (
               <div>
-                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
-                  Sanción adicional (%) — se separa como bono
+                <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
+                  Sancion adicional (%) — se separa como bono
                 </label>
                 <input
                   type="number"
@@ -444,57 +580,18 @@ export default function VentasClient({
                   value={formSanctionPct}
                   onChange={(e) => setFormSanctionPct(e.target.value)}
                   placeholder="0 (opcional)"
-                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
-                <p className="text-[11px] text-stone-400 mt-1">
-                  El 4.5% base siempre se entrega. El % adicional se registra aparte como bono retenido.
+                <p className="text-[11px] text-[#7d9990] mt-1">
+                  El 4.5% base siempre se entrega. El % adicional se registra aparte.
                 </p>
-              </div>
-            )}
-
-            {/* Vista previa */}
-            {liveCalc ? (
-              <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 space-y-2.5">
-                <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">
-                  Vista previa del cierre
-                </p>
-                <div className="flex justify-between text-sm">
-                  <span className="text-stone-600">Aporte ({APORTE_PCT}%)</span>
-                  <span className="font-semibold text-stone-800">{fmtMXN(liveCalc.contribution)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-stone-600">Cristaleria (fijo)</span>
-                  <span className="font-semibold text-stone-800">{fmtMXN(liveCalc.glassware)}</span>
-                </div>
-                <div className="flex justify-between text-sm border-t border-stone-200 pt-2.5">
-                  <span className="font-bold text-stone-900">Total a entregar</span>
-                  <span className="font-mono font-bold text-xl text-amber-600">{fmtMXN(liveCalc.to_deliver)}</span>
-                </div>
-                <div className="flex justify-between text-xs pt-0.5">
-                  <span className="text-stone-400 italic">
-                    Propina Capitan ({CAPITAN_PCT}% — info)
-                  </span>
-                  <span className="text-stone-400 italic">{fmtMXN(liveCalc.captain_tip)}</span>
-                </div>
-                {liveCalc.sanction_amount > 0 && (
-                  <div className="flex justify-between text-xs bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mt-1">
-                    <span className="text-orange-700 font-semibold">
-                      Bono sanción ({parseFloat(formSanctionPct).toFixed(1)}%) — retenido
-                    </span>
-                    <span className="text-orange-700 font-bold">{fmtMXN(liveCalc.sanction_amount)}</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="bg-stone-50 border border-dashed border-stone-200 rounded-2xl p-5 text-center text-sm text-stone-400">
-                Ingresa el monto para ver el calculo en vivo
               </div>
             )}
 
             <button
               type="submit"
               disabled={saving || !formStaffId || !formTotal}
-              className="w-full min-h-[44px] bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm disabled:opacity-50"
+              className="w-full min-h-[52px] bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm disabled:opacity-40"
             >
               {saving ? 'Guardando...' : 'Guardar venta'}
             </button>
@@ -505,56 +602,64 @@ export default function VentasClient({
         {activeTab === 'hoy' && (
           <div className="space-y-3 pt-1">
             {todaySales.length === 0 ? (
-              <div className="text-center py-14 text-stone-400 text-sm">
+              <div className="text-center py-14 text-[#7d9990] text-sm">
                 Sin ventas registradas hoy.
               </div>
             ) : (
               <>
-                {/* Resumen rápido del día */}
-                <div className="bg-amber-50 border border-amber-200/70 rounded-2xl p-4">
-                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3">
+                <div className="bg-amber-950/30 border border-amber-800/50 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">
                     Resumen del dia
                   </p>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-xs text-stone-500 mb-0.5">Total ventas</p>
-                      <p className="font-mono font-bold tracking-tight text-stone-900">{fmtMXN(dayTotals.total)}</p>
+                      <p className="text-xs text-[#7d9990] mb-0.5">Total ventas</p>
+                      <p className="font-mono font-bold tracking-tight text-[#e6edea]">
+                        {fmtMXN(dayTotals.total)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs text-stone-500 mb-0.5">A entregar total</p>
-                      <p className="font-mono font-bold tracking-tight text-amber-600">{fmtMXN(dayTotals.to_deliver)}</p>
+                      <p className="text-xs text-[#7d9990] mb-0.5">A entregar total</p>
+                      <p className="font-mono font-bold tracking-tight text-amber-500">
+                        {fmtMXN(dayTotals.to_deliver)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs text-stone-500 mb-0.5">Propina Capitán</p>
-                      <p className="font-mono font-bold tracking-tight text-sky-700">{fmtMXN(dayTotals.captain_tip)}</p>
+                      <p className="text-xs text-[#7d9990] mb-0.5">Propina Capitan</p>
+                      <p className="font-mono font-bold tracking-tight text-sky-400">
+                        {fmtMXN(dayTotals.captain_tip)}
+                      </p>
                     </div>
                     {dayTotals.sanction_amount > 0 && (
                       <div>
-                        <p className="text-xs text-stone-500 mb-0.5">Bonos retenidos</p>
-                        <p className="font-bold text-orange-600">{fmtMXN(dayTotals.sanction_amount)}</p>
+                        <p className="text-xs text-[#7d9990] mb-0.5">Bonos retenidos</p>
+                        <p className="font-bold text-orange-400">
+                          {fmtMXN(dayTotals.sanction_amount)}
+                        </p>
                       </div>
                     )}
                     <div>
-                      <p className="text-xs text-stone-500 mb-0.5">Registros</p>
-                      <p className="font-bold text-stone-900">{todaySales.length}</p>
+                      <p className="text-xs text-[#7d9990] mb-0.5">Registros</p>
+                      <p className="font-bold text-[#e6edea]">{todaySales.length}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Detalle por registro */}
                 {todaySales.map((sale) => (
                   <div
                     key={sale.id}
-                    className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4"
+                    className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
-                        <p className="font-bold text-stone-900 text-sm">{sale.staff_name}</p>
+                        <p className="font-bold text-[#e6edea] text-sm">
+                          {sale.staff_name}
+                        </p>
                         <span
                           className={`mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
                             sale.shift === 'Matutino'
-                              ? 'bg-amber-100 text-amber-700'
-                              : 'bg-sky-100 text-sky-700'
+                              ? 'bg-amber-950/60 border border-amber-700/50 text-amber-300'
+                              : 'bg-sky-950/60 border border-sky-700/50 text-sky-300'
                           }`}
                         >
                           {sale.shift}
@@ -563,7 +668,7 @@ export default function VentasClient({
                       {isManager && (
                         <button
                           onClick={() => handleDelete(sale.id)}
-                          className="shrink-0 text-xs font-semibold text-red-400 hover:text-red-600 px-2 py-1 rounded-lg hover:bg-red-50 transition"
+                          className="shrink-0 text-xs font-semibold text-red-500 hover:text-red-400 px-2 py-1 rounded-lg hover:bg-red-950/40 transition"
                         >
                           Eliminar
                         </button>
@@ -572,31 +677,45 @@ export default function VentasClient({
 
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Venta</span>
-                        <span className="font-semibold">{fmtMXN(sale.total)}</span>
+                        <span className="text-[#7d9990]">Venta</span>
+                        <span className="font-semibold text-[#e6edea]">
+                          {fmtMXN(sale.total)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Aporte</span>
-                        <span className="font-semibold">{fmtMXN(sale.contribution)}</span>
+                        <span className="text-[#7d9990]">Aporte</span>
+                        <span className="font-semibold text-[#e6edea]">
+                          {fmtMXN(sale.contribution)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Cristaleria</span>
-                        <span className="font-semibold">{fmtMXN(sale.glassware)}</span>
+                        <span className="text-[#7d9990]">Cristaleria</span>
+                        <span className="font-semibold text-[#e6edea]">
+                          {fmtMXN(sale.glassware)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-bold text-stone-900">A entregar</span>
-                        <span className="font-bold text-amber-600">{fmtMXN(sale.to_deliver)}</span>
+                        <span className="font-bold text-[#e6edea]">A entregar</span>
+                        <span className="font-bold text-amber-500">
+                          {fmtMXN(sale.to_deliver)}
+                        </span>
                       </div>
-                      <div className="flex justify-between col-span-2 pt-1.5 mt-0.5 border-t border-stone-100">
-                        <span className="text-stone-400 italic">Propina Cap. (info)</span>
-                        <span className="text-stone-400 italic">{fmtMXN(sale.captain_tip)}</span>
+                      <div className="flex justify-between col-span-2 pt-1.5 mt-0.5 border-t border-[#223530]">
+                        <span className="text-[#7d9990] italic">
+                          Propina Cap. (info)
+                        </span>
+                        <span className="text-[#7d9990] italic">
+                          {fmtMXN(sale.captain_tip)}
+                        </span>
                       </div>
                       {sale.sanction_amount > 0 && (
-                        <div className="flex justify-between col-span-2 text-orange-600">
+                        <div className="flex justify-between col-span-2 text-orange-400">
                           <span className="font-semibold">
-                            Bono sanción ({sale.sanction_pct}%)
+                            Bono sancion ({sale.sanction_pct}%)
                           </span>
-                          <span className="font-bold">{fmtMXN(sale.sanction_amount)}</span>
+                          <span className="font-bold">
+                            {fmtMXN(sale.sanction_amount)}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -613,7 +732,7 @@ export default function VentasClient({
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base bg-white capitalize"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500 capitalize"
             >
               {monthOptions.map((opt) => (
                 <option key={opt.value} value={opt.value} className="capitalize">
@@ -623,9 +742,11 @@ export default function VentasClient({
             </select>
 
             {monthLoading ? (
-              <div className="text-center py-14 text-stone-400 text-sm">Cargando...</div>
+              <div className="text-center py-14 text-[#7d9990] text-sm">
+                Cargando...
+              </div>
             ) : monthSales.length === 0 ? (
-              <div className="text-center py-14 text-stone-400 text-sm">
+              <div className="text-center py-14 text-[#7d9990] text-sm">
                 Sin ventas en este mes.
               </div>
             ) : (
@@ -633,75 +754,100 @@ export default function VentasClient({
                 {[...monthSummary.byStaff.entries()].map(([staffId, agg]) => (
                   <div
                     key={staffId}
-                    className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4"
+                    className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <p className="font-bold text-stone-900 text-sm">{agg.name}</p>
-                      <span className="text-xs text-stone-400">
+                      <p className="font-bold text-[#e6edea] text-sm">{agg.name}</p>
+                      <span className="text-xs text-[#7d9990]">
                         {agg.count} registro{agg.count !== 1 ? 's' : ''}
                       </span>
                     </div>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Total ventas</span>
-                        <span className="font-semibold">{fmtMXN(Math.round(agg.total * 100) / 100)}</span>
+                        <span className="text-[#7d9990]">Total ventas</span>
+                        <span className="font-semibold text-[#e6edea]">
+                          {fmtMXN(Math.round(agg.total * 100) / 100)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Aporte</span>
-                        <span className="font-semibold">{fmtMXN(Math.round(agg.contribution * 100) / 100)}</span>
+                        <span className="text-[#7d9990]">Aporte</span>
+                        <span className="font-semibold text-[#e6edea]">
+                          {fmtMXN(Math.round(agg.contribution * 100) / 100)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Cristaleria</span>
-                        <span className="font-semibold">{fmtMXN(Math.round(agg.glassware * 100) / 100)}</span>
+                        <span className="text-[#7d9990]">Cristaleria</span>
+                        <span className="font-semibold text-[#e6edea]">
+                          {fmtMXN(Math.round(agg.glassware * 100) / 100)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="font-bold text-stone-900">A entregar</span>
-                        <span className="font-mono font-bold tracking-tight text-amber-600">{fmtMXN(Math.round(agg.to_deliver * 100) / 100)}</span>
+                        <span className="font-bold text-[#e6edea]">A entregar</span>
+                        <span className="font-mono font-bold tracking-tight text-amber-500">
+                          {fmtMXN(Math.round(agg.to_deliver * 100) / 100)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-stone-400 italic">Propina Cap.</span>
-                        <span className="text-sky-600 font-semibold">{fmtMXN(Math.round(agg.captain_tip * 100) / 100)}</span>
+                        <span className="text-[#7d9990] italic">
+                          Propina Cap.
+                        </span>
+                        <span className="text-sky-400 font-semibold">
+                          {fmtMXN(Math.round(agg.captain_tip * 100) / 100)}
+                        </span>
                       </div>
                       {agg.sanction_amount > 0 && (
                         <div className="flex justify-between">
-                          <span className="text-orange-600">Bonos retenidos</span>
-                          <span className="text-orange-600 font-semibold">{fmtMXN(Math.round(agg.sanction_amount * 100) / 100)}</span>
+                          <span className="text-orange-400">Bonos retenidos</span>
+                          <span className="text-orange-400 font-semibold">
+                            {fmtMXN(Math.round(agg.sanction_amount * 100) / 100)}
+                          </span>
                         </div>
                       )}
                     </div>
                   </div>
                 ))}
 
-                {/* Totales del mes */}
-                <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4">
-                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3">
+                <div className="bg-amber-950/30 border border-amber-800/50 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">
                     Totales del mes &middot; {monthSales.length} registros
                   </p>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-stone-600">Total ventas</span>
-                      <span className="font-semibold">{fmtMXN(monthSummary.grandTotal)}</span>
+                      <span className="text-[#7d9990]">Total ventas</span>
+                      <span className="font-semibold text-[#e6edea]">
+                        {fmtMXN(monthSummary.grandTotal)}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-stone-600">Aporte</span>
-                      <span className="font-semibold">{fmtMXN(monthSummary.grandContrib)}</span>
+                      <span className="text-[#7d9990]">Aporte</span>
+                      <span className="font-semibold text-[#e6edea]">
+                        {fmtMXN(monthSummary.grandContrib)}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-stone-600">Cristaleria</span>
-                      <span className="font-semibold">{fmtMXN(monthSummary.grandGlass)}</span>
+                      <span className="text-[#7d9990]">Cristaleria</span>
+                      <span className="font-semibold text-[#e6edea]">
+                        {fmtMXN(monthSummary.grandGlass)}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-bold text-stone-900">A entregar</span>
-                      <span className="font-mono font-bold tracking-tight text-amber-600">{fmtMXN(monthSummary.grandDeliver)}</span>
+                      <span className="font-bold text-[#e6edea]">A entregar</span>
+                      <span className="font-mono font-bold tracking-tight text-amber-500">
+                        {fmtMXN(monthSummary.grandDeliver)}
+                      </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-stone-600">Propina Capitán</span>
-                      <span className="font-semibold text-sky-700">{fmtMXN(monthSummary.grandCaptain)}</span>
+                      <span className="text-[#7d9990]">Propina Capitan</span>
+                      <span className="font-semibold text-sky-400">
+                        {fmtMXN(monthSummary.grandCaptain)}
+                      </span>
                     </div>
                     {monthSummary.grandSanction > 0 && (
                       <div className="flex justify-between">
-                        <span className="text-orange-600">Bonos retenidos</span>
-                        <span className="font-bold text-orange-600">{fmtMXN(monthSummary.grandSanction)}</span>
+                        <span className="text-orange-400">Bonos retenidos</span>
+                        <span className="font-bold text-orange-400">
+                          {fmtMXN(monthSummary.grandSanction)}
+                        </span>
                       </div>
                     )}
                   </div>
@@ -709,7 +855,7 @@ export default function VentasClient({
 
                 <button
                   onClick={() => exportarCSV(monthSales, selectedMonth)}
-                  className="w-full min-h-[44px] bg-stone-700 hover:bg-stone-800 active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm"
+                  className="w-full min-h-[44px] bg-[#1c2b27] border border-[#223530] hover:border-[#7d9990] active:scale-[0.98] text-[#e6edea] font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm"
                 >
                   Exportar CSV
                 </button>

@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 
-// ── Tipos ──────────────────────────────────────────────────────────────────
 type ReportTab = 'ventas' | 'capitan' | 'bonos' | 'ranking';
 
 interface StaffSummary {
@@ -25,7 +24,6 @@ interface DaySummary {
   registros: number;
 }
 
-// ── Utilidades ─────────────────────────────────────────────────────────────
 function fmtMXN(n: number): string {
   return `$${n.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -35,7 +33,6 @@ function getCurrentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// ── Componente ─────────────────────────────────────────────────────────────
 export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -87,8 +84,9 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         return;
       }
 
-      // Resolver nombres
-      const staffIds = [...new Set((salesData as { staff_id: string }[]).map((s) => s.staff_id))];
+      const staffIds = [
+        ...new Set((salesData as { staff_id: string }[]).map((s) => s.staff_id)),
+      ];
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, name')
@@ -96,18 +94,21 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
 
       const nameMap = new Map<string, string>(
         (profilesData ?? []).map((p: { id: string; name: string | null }) => [
-          p.id, p.name ?? '(sin nombre)',
+          p.id,
+          p.name ?? '(sin nombre)',
         ]),
       );
 
-      // Agregar por mesero
       const byStaff = new Map<string, StaffSummary>();
       const byDay = new Map<string, DaySummary>();
 
       for (const s of salesData as {
-        sale_date: string; staff_id: string;
-        total: number | null; contribution: number | null;
-        to_deliver: number | null; captain_tip: number | null;
+        sale_date: string;
+        staff_id: string;
+        total: number | null;
+        contribution: number | null;
+        to_deliver: number | null;
+        captain_tip: number | null;
         sanction_amount: number | null;
       }[]) {
         const total = Number(s.total) || 0;
@@ -116,7 +117,6 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         const captain_tip = Number(s.captain_tip) || 0;
         const sanction_amount = Number(s.sanction_amount) || 0;
 
-        // Por mesero
         const existing = byStaff.get(s.staff_id);
         if (existing) {
           existing.count++;
@@ -129,11 +129,15 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
           byStaff.set(s.staff_id, {
             staff_id: s.staff_id,
             name: nameMap.get(s.staff_id) ?? s.staff_id,
-            count: 1, total, contribution, to_deliver, captain_tip, sanction_amount,
+            count: 1,
+            total,
+            contribution,
+            to_deliver,
+            captain_tip,
+            sanction_amount,
           });
         }
 
-        // Por día
         const dayExisting = byDay.get(s.sale_date);
         if (dayExisting) {
           dayExisting.captain_total += captain_tip;
@@ -152,20 +156,26 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
       const r = (n: number) => Math.round(n * 100) / 100;
 
       setStaffSummaries(
-        [...byStaff.values()].map((s) => ({
-          ...s,
-          total: r(s.total), contribution: r(s.contribution),
-          to_deliver: r(s.to_deliver), captain_tip: r(s.captain_tip),
-          sanction_amount: r(s.sanction_amount),
-        })).sort((a, b) => b.total - a.total),
+        [...byStaff.values()]
+          .map((s) => ({
+            ...s,
+            total: r(s.total),
+            contribution: r(s.contribution),
+            to_deliver: r(s.to_deliver),
+            captain_tip: r(s.captain_tip),
+            sanction_amount: r(s.sanction_amount),
+          }))
+          .sort((a, b) => b.total - a.total),
       );
 
       setDaySummaries(
-        [...byDay.values()].map((d) => ({
-          ...d,
-          captain_total: r(d.captain_total),
-          ventas_total: r(d.ventas_total),
-        })).sort((a, b) => a.sale_date.localeCompare(b.sale_date)),
+        [...byDay.values()]
+          .map((d) => ({
+            ...d,
+            captain_total: r(d.captain_total),
+            ventas_total: r(d.ventas_total),
+          }))
+          .sort((a, b) => a.sale_date.localeCompare(b.sale_date)),
       );
 
       setLoading(false);
@@ -190,41 +200,43 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
 
   const TABS: { key: ReportTab; label: string }[] = [
     { key: 'ventas', label: 'Ventas' },
-    ...(isAdmin ? [{ key: 'capitan' as ReportTab, label: 'Capitán' }] : []),
+    ...(isAdmin ? [{ key: 'capitan' as ReportTab, label: 'Capitan' }] : []),
     { key: 'bonos', label: 'Bonos' },
     { key: 'ranking', label: 'Ranking' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
+    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
+      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
-          className="text-stone-400 hover:text-stone-700 text-xl leading-none"
+          className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
           aria-label="Volver"
         >
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-600 text-lg leading-tight">Reportes</h1>
-          <p className="text-xs text-stone-500 capitalize">
+          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+            Reportes
+          </h1>
+          <p className="text-xs text-[#7d9990] capitalize">
             {monthOptions.find((o) => o.value === selectedMonth)?.label ?? selectedMonth}
           </p>
         </div>
       </header>
 
-      {/* Subtabs — segmented control */}
-      <div className="bg-white border-b border-stone-200 sticky top-[57px] z-10 px-4 py-2">
-        <div className="p-1 bg-stone-100 rounded-xl flex">
+      {/* Subtabs */}
+      <div className="bg-[#141f1c] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
+        <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
           {TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
               className={`flex-1 h-9 rounded-lg text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
                 tab === t.key
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-500 hover:text-stone-700'
+                  ? 'bg-[#1c2b27] text-[#e6edea] shadow-sm'
+                  : 'text-[#7d9990] hover:text-[#e6edea]'
               }`}
             >
               {t.label}
@@ -234,11 +246,10 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
       </div>
 
       <main className="p-4 max-w-2xl mx-auto space-y-4">
-        {/* Selector de mes */}
         <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base bg-white capitalize"
+          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500 capitalize"
         >
           {monthOptions.map((opt) => (
             <option key={opt.value} value={opt.value} className="capitalize">
@@ -248,50 +259,65 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         </select>
 
         {loading ? (
-          <div className="text-center py-16 text-stone-400 text-sm">Cargando reportes...</div>
+          <div className="text-center py-16 text-[#7d9990] text-sm">
+            Cargando reportes...
+          </div>
         ) : staffSummaries.length === 0 ? (
-          <div className="text-center py-16 text-stone-400 text-sm">Sin datos en este mes.</div>
+          <div className="text-center py-16 text-[#7d9990] text-sm">
+            Sin datos en este mes.
+          </div>
         ) : (
           <>
             {/* ── Ventas ── */}
             {tab === 'ventas' && (
               <div className="space-y-3">
-                {/* Totales globales */}
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
-                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3">
+                <div className="bg-amber-950/30 border border-amber-800/50 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">
                     Total del mes &middot; {grandTotals.count} registros
                   </p>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <p className="text-xs text-stone-500">Total ventas</p>
-                      <p className="font-mono font-bold tracking-tight text-stone-900">{fmtMXN(grandTotals.total)}</p>
+                      <p className="text-xs text-[#7d9990]">Total ventas</p>
+                      <p className="font-mono font-bold tracking-tight text-[#e6edea]">
+                        {fmtMXN(grandTotals.total)}
+                      </p>
                     </div>
                     <div>
-                      <p className="text-xs text-stone-500">A entregar total</p>
-                      <p className="font-mono font-bold tracking-tight text-amber-600">{fmtMXN(grandTotals.to_deliver)}</p>
+                      <p className="text-xs text-[#7d9990]">A entregar total</p>
+                      <p className="font-mono font-bold tracking-tight text-amber-500">
+                        {fmtMXN(grandTotals.to_deliver)}
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Por mesero */}
                 {staffSummaries.map((s) => (
-                  <div key={s.staff_id} className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4">
+                  <div
+                    key={s.staff_id}
+                    className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
+                  >
                     <div className="flex items-center justify-between mb-2">
-                      <p className="font-bold text-stone-900 text-sm">{s.name}</p>
-                      <span className="text-xs text-stone-400">{s.count} reg.</span>
+                      <p className="font-bold text-[#e6edea] text-sm">{s.name}</p>
+                      <span className="text-xs text-[#7d9990]">{s.count} reg.</span>
                     </div>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Total ventas</span>
-                        <span className="font-semibold">{fmtMXN(s.total)}</span>
+                        <span className="text-[#7d9990]">Total ventas</span>
+                        <span className="font-semibold text-[#e6edea]">
+                          {fmtMXN(s.total)}
+                        </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-stone-500">Aporte</span>
-                        <span className="font-semibold">{fmtMXN(s.contribution)}</span>
+                        <span className="text-[#7d9990]">Aporte</span>
+                        <span className="font-semibold text-[#e6edea]">
+                          {fmtMXN(s.contribution)}
+                        </span>
                       </div>
                       <div className="flex justify-between col-span-2">
-                        <span className="font-bold text-stone-900">A entregar</span>
-                        <span className="font-bold text-amber-600">{fmtMXN(s.to_deliver)}</span>
+                        <span className="font-bold text-[#e6edea]">A entregar</span>
+                        <span className="font-bold text-amber-500">
+                          {fmtMXN(s.to_deliver)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -299,37 +325,48 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
               </div>
             )}
 
-            {/* ── Capitán (solo admin) ── */}
+            {/* ── Capitan (solo admin) ── */}
             {tab === 'capitan' && isAdmin && (
               <div className="space-y-3">
-                <div className="bg-sky-50 border border-sky-200 rounded-2xl p-4">
-                  <p className="text-xs font-bold text-sky-700 uppercase tracking-wider mb-1">
-                    Total propinas capitán
+                <div className="bg-sky-950/30 border border-sky-800/50 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-sky-400 uppercase tracking-wider mb-1">
+                    Total propinas capitan
                   </p>
-                  <p className="text-2xl font-mono font-extrabold tracking-tight text-sky-700">
+                  <p className="text-2xl font-mono font-extrabold tracking-tight text-sky-400">
                     {fmtMXN(grandTotals.captain_tip)}
                   </p>
-                  <p className="text-xs text-stone-400 mt-1">
-                    {daySummaries.length} días con ventas
+                  <p className="text-xs text-[#7d9990] mt-1">
+                    {daySummaries.length} dias con ventas
                   </p>
                 </div>
 
-                {/* Por día */}
-                <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
+                <div className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
                   <table className="w-full border-collapse">
                     <thead>
-                      <tr className="border-b border-stone-100 bg-stone-50">
-                        <th className="px-4 py-2.5 text-left text-xs font-bold text-stone-500 uppercase">Fecha</th>
-                        <th className="px-3 py-2.5 text-right text-xs font-bold text-stone-500 uppercase">Ventas</th>
-                        <th className="px-4 py-2.5 text-right text-xs font-bold text-sky-600 uppercase">Cap.</th>
+                      <tr className="border-b border-[#223530] bg-[#1c2b27]/40">
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-[#7d9990] uppercase">
+                          Fecha
+                        </th>
+                        <th className="px-3 py-2.5 text-right text-xs font-bold text-[#7d9990] uppercase">
+                          Ventas
+                        </th>
+                        <th className="px-4 py-2.5 text-right text-xs font-bold text-sky-400 uppercase">
+                          Cap.
+                        </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-stone-100">
+                    <tbody className="divide-y divide-[#223530]">
                       {daySummaries.map((d) => (
-                        <tr key={d.sale_date} className="hover:bg-stone-50/50">
-                          <td className="px-4 py-2.5 text-xs text-stone-700 font-medium">{d.sale_date}</td>
-                          <td className="px-3 py-2.5 text-xs text-stone-500 text-right">{fmtMXN(d.ventas_total)}</td>
-                          <td className="px-4 py-2.5 text-xs font-bold text-sky-700 text-right">{fmtMXN(d.captain_total)}</td>
+                        <tr key={d.sale_date} className="hover:bg-[#1c2b27]/30">
+                          <td className="px-4 py-2.5 text-xs text-[#e6edea] font-medium">
+                            {d.sale_date}
+                          </td>
+                          <td className="px-3 py-2.5 text-xs text-[#7d9990] text-right">
+                            {fmtMXN(d.ventas_total)}
+                          </td>
+                          <td className="px-4 py-2.5 text-xs font-bold text-sky-400 text-right">
+                            {fmtMXN(d.captain_total)}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -342,16 +379,16 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
             {tab === 'bonos' && (
               <div className="space-y-3">
                 {grandTotals.sanction_amount === 0 ? (
-                  <div className="text-center py-12 text-stone-400 text-sm">
-                    Sin bonos por sanción en este mes.
+                  <div className="text-center py-12 text-[#7d9990] text-sm">
+                    Sin bonos por sancion en este mes.
                   </div>
                 ) : (
                   <>
-                    <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4">
-                      <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-1">
+                    <div className="bg-orange-950/30 border border-orange-800/50 rounded-2xl p-4">
+                      <p className="text-xs font-bold text-orange-400 uppercase tracking-wider mb-1">
                         Total bonos retenidos
                       </p>
-                      <p className="text-2xl font-mono font-extrabold tracking-tight text-orange-600">
+                      <p className="text-2xl font-mono font-extrabold tracking-tight text-orange-400">
                         {fmtMXN(grandTotals.sanction_amount)}
                       </p>
                     </div>
@@ -359,12 +396,17 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                     {staffSummaries
                       .filter((s) => s.sanction_amount > 0)
                       .map((s) => (
-                        <div key={s.staff_id} className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4">
+                        <div
+                          key={s.staff_id}
+                          className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
+                        >
                           <div className="flex items-center justify-between">
-                            <p className="font-bold text-stone-900 text-sm">{s.name}</p>
-                            <p className="font-bold text-orange-600">{fmtMXN(s.sanction_amount)}</p>
+                            <p className="font-bold text-[#e6edea] text-sm">{s.name}</p>
+                            <p className="font-bold text-orange-400">
+                              {fmtMXN(s.sanction_amount)}
+                            </p>
                           </div>
-                          <p className="text-xs text-stone-400 mt-0.5">
+                          <p className="text-xs text-[#7d9990] mt-0.5">
                             Ventas: {fmtMXN(s.total)} &middot; {s.count} registros
                           </p>
                         </div>
@@ -377,25 +419,39 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
             {/* ── Ranking ── */}
             {tab === 'ranking' && (
               <div className="space-y-2">
-                <p className="text-xs text-stone-400 px-1">Ordenado por total de ventas</p>
+                <p className="text-xs text-[#7d9990] px-1">
+                  Ordenado por total de ventas
+                </p>
                 {staffSummaries.map((s, idx) => (
-                  <div key={s.staff_id} className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 flex items-center gap-4">
+                  <div
+                    key={s.staff_id}
+                    className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 flex items-center gap-4"
+                  >
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-sm shrink-0 ${
-                        idx === 0 ? 'bg-amber-400 text-white' :
-                        idx === 1 ? 'bg-stone-300 text-stone-700' :
-                        idx === 2 ? 'bg-orange-300 text-white' :
-                        'bg-stone-100 text-stone-500'
+                        idx === 0
+                          ? 'bg-amber-500 text-white'
+                          : idx === 1
+                          ? 'bg-[#223530] text-[#e6edea]'
+                          : idx === 2
+                          ? 'bg-orange-900/60 border border-orange-700/50 text-orange-300'
+                          : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990]'
                       }`}
                     >
                       {idx + 1}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-stone-900 text-sm truncate">{s.name}</p>
-                      <p className="text-xs text-stone-400">{s.count} reg. &middot; A entregar: {fmtMXN(s.to_deliver)}</p>
+                      <p className="font-bold text-[#e6edea] text-sm truncate">
+                        {s.name}
+                      </p>
+                      <p className="text-xs text-[#7d9990]">
+                        {s.count} reg. &middot; A entregar: {fmtMXN(s.to_deliver)}
+                      </p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-mono font-extrabold tracking-tight text-stone-900 text-base">{fmtMXN(s.total)}</p>
+                      <p className="font-mono font-extrabold tracking-tight text-[#e6edea] text-base">
+                        {fmtMXN(s.total)}
+                      </p>
                     </div>
                   </div>
                 ))}

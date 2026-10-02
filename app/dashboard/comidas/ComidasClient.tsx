@@ -47,22 +47,27 @@ function fmtTimer(s: number): string {
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString('es-MX', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 // ── Componente ─────────────────────────────────────────────────────────────
-export default function ComidasClient({ staff, initialBreaks, today }: ComidasClientProps) {
+export default function ComidasClient({
+  staff,
+  initialBreaks,
+  today,
+}: ComidasClientProps) {
   const [breaks, setBreaks] = useState<MealBreak[]>(initialBreaks);
   const [nowMs, setNowMs] = useState(Date.now());
-  const [starting, setStarting] = useState<string | null>(null); // staffId being started
+  const [starting, setStarting] = useState<string | null>(null);
 
-  // Tick cada segundo
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  // Mapa: staffId → break activo de hoy
   const activeByStaff = useMemo(() => {
     const m = new Map<string, MealBreak>();
     for (const b of breaks) {
@@ -71,7 +76,6 @@ export default function ComidasClient({ staff, initialBreaks, today }: ComidasCl
     return m;
   }, [breaks]);
 
-  // Mapa: staffId → último break terminado de hoy
   const finishedByStaff = useMemo(() => {
     const m = new Map<string, MealBreak>();
     for (const b of breaks) {
@@ -115,10 +119,11 @@ export default function ComidasClient({ staff, initialBreaks, today }: ComidasCl
     const record = breaks.find((b) => b.id === breakId);
     if (!record) return;
 
-    const elapsedS = Math.floor((Date.now() - new Date(record.started_at).getTime()) / 1000);
+    const elapsedS = Math.floor(
+      (Date.now() - new Date(record.started_at).getTime()) / 1000,
+    );
     const status: BreakStatus = elapsedS > DURATION_S ? 'overdue' : 'completed';
 
-    // Optimista
     setBreaks((prev) =>
       prev.map((b) => (b.id === breakId ? { ...b, ended_at: endedAt, status } : b)),
     );
@@ -126,7 +131,6 @@ export default function ComidasClient({ staff, initialBreaks, today }: ComidasCl
     try {
       await endMealBreakAction(breakId, endedAt, status);
     } catch {
-      // Revertir
       setBreaks((prev) =>
         prev.map((b) =>
           b.id === breakId ? { ...b, ended_at: null, status: 'active' } : b,
@@ -136,24 +140,24 @@ export default function ComidasClient({ staff, initialBreaks, today }: ComidasCl
   }
 
   return (
-    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
+    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
+      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
-          className="text-stone-400 hover:text-stone-700 text-xl leading-none"
+          className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
           aria-label="Volver"
         >
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-600 text-lg leading-tight">
+          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
             Comidas
           </h1>
-          <p className="text-xs text-stone-500">
+          <p className="text-xs text-[#7d9990]">
             {today} &middot; 30 min
             {activeCount > 0 && (
-              <span className="ml-1 font-semibold text-amber-600">
+              <span className="ml-1 font-semibold text-amber-500">
                 &middot; {activeCount} activa{activeCount !== 1 ? 's' : ''}
               </span>
             )}
@@ -161,127 +165,154 @@ export default function ComidasClient({ staff, initialBreaks, today }: ComidasCl
         </div>
       </header>
 
-      <main className="p-3 max-w-xl mx-auto">
-        <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-stone-100 bg-stone-50">
-                <th className="px-4 py-2.5 text-left text-xs font-bold text-stone-500 uppercase tracking-wider">
-                  Colaborador
-                </th>
-                <th className="px-3 py-2.5 text-left text-xs font-bold text-stone-500 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-3 py-2.5 text-right text-xs font-bold text-stone-500 uppercase tracking-wider w-[90px]">
-                  Acción
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-100">
-              {staff.map((member) => {
-                const active = activeByStaff.get(member.id);
-                const finished = finishedByStaff.get(member.id);
-                const isStarting = starting === member.id;
+      <main className="p-3 max-w-xl mx-auto space-y-2.5">
+        {staff.length === 0 && (
+          <div className="text-center py-12 text-[#7d9990] text-sm">
+            Sin colaboradores activos.
+          </div>
+        )}
 
-                let remaining = 0;
-                let timerState: 'normal' | 'warning' | 'overdue' = 'normal';
+        {staff.map((member) => {
+          const active = activeByStaff.get(member.id);
+          const finished = finishedByStaff.get(member.id);
+          const isStarting = starting === member.id;
 
-                if (active) {
-                  remaining = getRemaining(active.started_at, nowMs);
-                  timerState = remaining <= 0 ? 'overdue' : remaining <= WARNING_S ? 'warning' : 'normal';
-                }
+          let remaining = 0;
+          let timerState: 'normal' | 'warning' | 'overdue' = 'normal';
+          let progressPct = 0;
 
-                const rowBg = active
-                  ? timerState === 'overdue'
-                    ? 'bg-red-50'
-                    : timerState === 'warning'
-                    ? 'bg-amber-50'
-                    : 'bg-sky-50/40'
-                  : '';
+          if (active) {
+            remaining = getRemaining(active.started_at, nowMs);
+            timerState =
+              remaining <= 0
+                ? 'overdue'
+                : remaining <= WARNING_S
+                ? 'warning'
+                : 'normal';
+            progressPct = Math.min(
+              100,
+              Math.max(0, ((DURATION_S - remaining) / DURATION_S) * 100),
+            );
+          }
 
-                return (
-                  <tr key={member.id} className={rowBg}>
-                    {/* Nombre */}
-                    <td className="px-4 py-3">
-                      <p className="font-semibold text-sm text-stone-900 leading-tight">
-                        {member.name}
-                      </p>
-                      {active && (
-                        <p className="text-[10px] text-stone-400 mt-0.5">
-                          Salió: {fmtTime(active.started_at)}
-                        </p>
-                      )}
-                      {finished && !active && (
-                        <p className="text-[10px] text-stone-400 mt-0.5">
-                          {fmtTime(finished.started_at)} → {fmtTime(finished.ended_at!)}
-                        </p>
-                      )}
-                    </td>
+          const dotClass = active
+            ? timerState === 'overdue'
+              ? 'bg-red-500 animate-pulse'
+              : timerState === 'warning'
+              ? 'bg-amber-500'
+              : 'bg-emerald-500'
+            : finished
+            ? finished.status === 'overdue'
+              ? 'bg-red-800'
+              : 'bg-emerald-800'
+            : 'bg-[#223530]';
 
-                    {/* Estado */}
-                    <td className="px-3 py-3">
-                      {active ? (
-                        <span
-                          className={`font-mono font-black tabular-nums text-sm ${
-                            timerState === 'overdue' ? 'text-red-600' :
-                            timerState === 'warning' ? 'text-amber-600' :
-                            'text-sky-700'
-                          }`}
-                        >
-                          {fmtTimer(remaining)}
-                        </span>
-                      ) : finished ? (
-                        <span
-                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                            finished.status === 'overdue'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-emerald-100 text-emerald-700'
-                          }`}
-                        >
-                          {finished.status === 'overdue' ? 'Excedido' : '✓ OK'}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-stone-400">Libre</span>
-                      )}
-                    </td>
+          return (
+            <div
+              key={member.id}
+              className="bg-[#141f1c] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]"
+            >
+              <div className="px-4 py-3 flex items-center gap-3">
+                {/* Semaforo */}
+                <span className={`shrink-0 w-3 h-3 rounded-full ${dotClass}`} />
 
-                    {/* Acción */}
-                    <td className="px-3 py-3 text-right">
-                      {active ? (
-                        <button
-                          onClick={() => handleEnd(active.id)}
-                          className={`min-h-[44px] px-3 rounded-xl text-xs font-bold transition duration-150 ease-out active:scale-[0.98] select-none ${
-                            timerState === 'overdue'
-                              ? 'bg-red-500 hover:bg-red-600 text-white'
-                              : timerState === 'warning'
-                              ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                              : 'bg-sky-600 hover:bg-sky-700 text-white'
-                          }`}
-                        >
-                          ⏹ Fin
-                        </button>
-                      ) : !finished ? (
-                        <button
-                          onClick={() => handleStart(member.id)}
-                          disabled={isStarting}
-                          className="min-h-[44px] px-3 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white transition duration-150 ease-out select-none disabled:opacity-50"
-                        >
-                          {isStarting ? '...' : '▶ Comer'}
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                {/* Nombre */}
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-[#e6edea] leading-tight truncate">
+                    {member.name}
+                  </p>
+                  {active ? (
+                    <p className="text-[10px] text-[#7d9990] mt-0.5">
+                      Salio: {fmtTime(active.started_at)}
+                    </p>
+                  ) : finished ? (
+                    <p className="text-[10px] text-[#7d9990] mt-0.5">
+                      {fmtTime(finished.started_at)} &rarr;{' '}
+                      {fmtTime(finished.ended_at!)}
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-[#7d9990] mt-0.5 capitalize">
+                      {member.role}
+                    </p>
+                  )}
+                </div>
 
-          {staff.length === 0 && (
-            <p className="text-center py-10 text-stone-400 text-sm">
-              Sin colaboradores activos.
-            </p>
-          )}
-        </div>
+                {/* Timer o estado */}
+                <div className="shrink-0 text-right">
+                  {active ? (
+                    <span
+                      className={`font-mono font-black tabular-nums text-lg leading-none ${
+                        timerState === 'overdue'
+                          ? 'text-red-400 animate-pulse'
+                          : timerState === 'warning'
+                          ? 'text-amber-400'
+                          : 'text-emerald-400'
+                      }`}
+                    >
+                      {fmtTimer(remaining)}
+                    </span>
+                  ) : finished ? (
+                    <span
+                      className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
+                        finished.status === 'overdue'
+                          ? 'bg-red-950/60 border-red-800/50 text-red-300'
+                          : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300'
+                      }`}
+                    >
+                      {finished.status === 'overdue' ? 'Excedido' : '✓ OK'}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-[#7d9990]">Libre</span>
+                  )}
+                </div>
+
+                {/* Boton de accion */}
+                <div className="shrink-0 ml-1">
+                  {active ? (
+                    <button
+                      onClick={() => handleEnd(active.id)}
+                      className={`min-h-[44px] px-3 rounded-xl text-xs font-bold border transition duration-150 ease-out active:scale-[0.98] select-none ${
+                        timerState === 'overdue'
+                          ? 'bg-red-900/60 border-red-700/80 text-red-200 hover:bg-red-800/60'
+                          : timerState === 'warning'
+                          ? 'bg-amber-900/60 border-amber-700/80 text-amber-200 hover:bg-amber-800/60'
+                          : 'bg-emerald-900/60 border-emerald-700/80 text-emerald-200 hover:bg-emerald-800/60'
+                      }`}
+                    >
+                      Regresar
+                    </button>
+                  ) : !finished ? (
+                    <button
+                      onClick={() => handleStart(member.id)}
+                      disabled={isStarting}
+                      className="min-h-[44px] px-3 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white transition duration-150 ease-out select-none disabled:opacity-50"
+                    >
+                      {isStarting ? '...' : 'Comer'}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              {/* Barra de progreso (solo si activo) */}
+              {active && (
+                <div className="px-4 pb-3">
+                  <div className="h-1.5 bg-[#1c2b27] rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-1000 ${
+                        timerState === 'overdue'
+                          ? 'bg-red-500'
+                          : timerState === 'warning'
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${progressPct}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </main>
     </div>
   );

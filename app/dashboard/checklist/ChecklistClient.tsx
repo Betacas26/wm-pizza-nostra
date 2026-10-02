@@ -28,8 +28,8 @@ const TYPE_LABELS: Record<ChecklistType, string> = {
 };
 
 const TYPE_STYLE: Record<ChecklistType, string> = {
-  apertura: 'bg-amber-100 text-amber-700',
-  cierre:   'bg-sky-100 text-sky-700',
+  apertura: 'bg-amber-950/60 border border-amber-700/50 text-amber-300',
+  cierre: 'bg-sky-950/60 border border-sky-700/50 text-sky-300',
 };
 
 interface CheckItem {
@@ -41,61 +41,61 @@ const CHECKLIST: Record<ChecklistArea, Record<ChecklistType, CheckItem[]>> = {
   PB: {
     apertura: [
       { key: 'pb_ap_1', label: 'Limpiar y acomodar mesas y sillas' },
-      { key: 'pb_ap_2', label: 'Colocar mantelería limpia en todas las mesas' },
-      { key: 'pb_ap_3', label: 'Verificar menús (limpios y completos)' },
+      { key: 'pb_ap_2', label: 'Colocar manteleria limpia en todas las mesas' },
+      { key: 'pb_ap_3', label: 'Verificar menus (limpios y completos)' },
       { key: 'pb_ap_4', label: 'Preparar mise en place (sal, pimienta, servilleteros)' },
-      { key: 'pb_ap_5', label: 'Revisar iluminación y climatización' },
+      { key: 'pb_ap_5', label: 'Revisar iluminacion y climatizacion' },
       { key: 'pb_ap_6', label: 'Verificar material de servicio (charolas, platos)' },
       { key: 'pb_ap_7', label: 'Revisar limpieza de piso y accesos' },
     ],
     cierre: [
-      { key: 'pb_ci_1', label: 'Desmantelar mesas y clasificar mantelería sucia' },
+      { key: 'pb_ci_1', label: 'Desmantelar mesas y clasificar manteleria sucia' },
       { key: 'pb_ci_2', label: 'Limpiar y apilar sillas y mesas' },
-      { key: 'pb_ci_3', label: 'Barrer y trapear el piso del área' },
+      { key: 'pb_ci_3', label: 'Barrer y trapear el piso del area' },
       { key: 'pb_ci_4', label: 'Recoger y registrar objetos olvidados' },
-      { key: 'pb_ci_5', label: 'Apagar iluminación y climatización' },
+      { key: 'pb_ci_5', label: 'Apagar iluminacion y climatizacion' },
       { key: 'pb_ci_6', label: 'Verificar que no queden alimentos ni bebidas' },
-      { key: 'pb_ci_7', label: 'Reportar incidencias o daños del turno' },
+      { key: 'pb_ci_7', label: 'Reportar incidencias o danos del turno' },
     ],
   },
   PA: {
     apertura: [
       { key: 'pa_ap_1', label: 'Limpiar y acomodar mesas y sillas' },
-      { key: 'pa_ap_2', label: 'Colocar mantelería limpia en todas las mesas' },
-      { key: 'pa_ap_3', label: 'Verificar menús (limpios y completos)' },
+      { key: 'pa_ap_2', label: 'Colocar manteleria limpia en todas las mesas' },
+      { key: 'pa_ap_3', label: 'Verificar menus (limpios y completos)' },
       { key: 'pa_ap_4', label: 'Preparar mise en place' },
-      { key: 'pa_ap_5', label: 'Revisar iluminación y climatización' },
+      { key: 'pa_ap_5', label: 'Revisar iluminacion y climatizacion' },
       { key: 'pa_ap_6', label: 'Revisar limpieza de escaleras y accesos' },
       { key: 'pa_ap_7', label: 'Verificar material de servicio' },
     ],
     cierre: [
-      { key: 'pa_ci_1', label: 'Desmantelar mesas y clasificar mantelería sucia' },
+      { key: 'pa_ci_1', label: 'Desmantelar mesas y clasificar manteleria sucia' },
       { key: 'pa_ci_2', label: 'Limpiar y apilar sillas y mesas' },
       { key: 'pa_ci_3', label: 'Barrer y trapear piso y escaleras' },
       { key: 'pa_ci_4', label: 'Recoger y registrar objetos olvidados' },
-      { key: 'pa_ci_5', label: 'Apagar iluminación y climatización' },
+      { key: 'pa_ci_5', label: 'Apagar iluminacion y climatizacion' },
       { key: 'pa_ci_6', label: 'Verificar que no queden alimentos ni bebidas' },
-      { key: 'pa_ci_7', label: 'Reportar incidencias o daños del turno' },
+      { key: 'pa_ci_7', label: 'Reportar incidencias o danos del turno' },
     ],
   },
   TE: {
     apertura: [
       { key: 'te_ap_1', label: 'Limpiar y acomodar mobiliario de exterior' },
       { key: 'te_ap_2', label: 'Desplegar y fijar parasoles (verificar estado)' },
-      { key: 'te_ap_3', label: 'Colocar mantelería o individuales en mesas' },
-      { key: 'te_ap_4', label: 'Verificar menús de terraza' },
+      { key: 'te_ap_3', label: 'Colocar manteleria o individuales en mesas' },
+      { key: 'te_ap_4', label: 'Verificar menus de terraza' },
       { key: 'te_ap_5', label: 'Preparar mise en place' },
-      { key: 'te_ap_6', label: 'Revisar iluminación exterior' },
+      { key: 'te_ap_6', label: 'Revisar iluminacion exterior' },
       { key: 'te_ap_7', label: 'Verificar estado del piso de terraza' },
     ],
     cierre: [
-      { key: 'te_ci_1', label: 'Recoger y guardar mantelería o individuales' },
+      { key: 'te_ci_1', label: 'Recoger y guardar manteleria o individuales' },
       { key: 'te_ci_2', label: 'Plegar y asegurar parasoles' },
       { key: 'te_ci_3', label: 'Limpiar y apilar mesas y sillas de exterior' },
       { key: 'te_ci_4', label: 'Barrer piso de terraza' },
       { key: 'te_ci_5', label: 'Recoger y registrar objetos olvidados' },
-      { key: 'te_ci_6', label: 'Apagar iluminación exterior' },
-      { key: 'te_ci_7', label: 'Reportar incidencias o daños del turno' },
+      { key: 'te_ci_6', label: 'Apagar iluminacion exterior' },
+      { key: 'te_ci_7', label: 'Reportar incidencias o danos del turno' },
     ],
   },
   BA: {
@@ -103,17 +103,17 @@ const CHECKLIST: Record<ChecklistArea, Record<ChecklistType, CheckItem[]>> = {
       { key: 'ba_ap_1', label: 'Revisar limpieza y orden de la barra' },
       { key: 'ba_ap_2', label: 'Verificar inventario de bebidas y licores' },
       { key: 'ba_ap_3', label: 'Preparar hielo y verificar hieleras' },
-      { key: 'ba_ap_4', label: 'Revisar herramientas de barra y cristalería' },
-      { key: 'ba_ap_5', label: 'Verificar cristalería limpia y sin roturas' },
-      { key: 'ba_ap_6', label: 'Revisar surtidores y conexiones de gas/CO₂' },
+      { key: 'ba_ap_4', label: 'Revisar herramientas de barra y cristaleria' },
+      { key: 'ba_ap_5', label: 'Verificar cristaleria limpia y sin roturas' },
+      { key: 'ba_ap_6', label: 'Revisar surtidores y conexiones de gas/CO2' },
       { key: 'ba_ap_7', label: 'Verificar que la terminal de pago funcione' },
     ],
     cierre: [
       { key: 'ba_ci_1', label: 'Limpiar profundamente la superficie de la barra' },
       { key: 'ba_ci_2', label: 'Guardar y asegurar licores y bebidas' },
-      { key: 'ba_ci_3', label: 'Lavar y guardar cristalería' },
+      { key: 'ba_ci_3', label: 'Lavar y guardar cristaleria' },
       { key: 'ba_ci_4', label: 'Vaciar y limpiar hieleras' },
-      { key: 'ba_ci_5', label: 'Cerrar surtidores y llaves de gas/CO₂' },
+      { key: 'ba_ci_5', label: 'Cerrar surtidores y llaves de gas/CO2' },
       { key: 'ba_ci_6', label: 'Limpiar y guardar herramientas de barra' },
       { key: 'ba_ci_7', label: 'Reportar incidencias, consumos y faltantes' },
     ],
@@ -123,7 +123,6 @@ const CHECKLIST: Record<ChecklistArea, Record<ChecklistType, CheckItem[]>> = {
 const AREAS: ChecklistArea[] = ['PB', 'PA', 'TE', 'BA'];
 const TYPES: ChecklistType[] = ['apertura', 'cierre'];
 
-// ── Utilidad de hora ──────────────────────────────────────────────────────────
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-MX', {
     hour: '2-digit',
@@ -137,78 +136,69 @@ function HistoryCard({ record }: { record: HistoryRecord }) {
   const allOk = record.checked_items === record.total_items;
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
+    <div className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full px-4 py-3 flex items-start gap-3 text-left active:bg-stone-50 transition"
+        className="w-full px-4 py-3 flex items-start gap-3 text-left active:bg-[#1c2b27] transition"
       >
-        {/* Área + tipo */}
         <div className="shrink-0 text-center">
-          <span className="block font-black text-stone-900 text-base leading-none">
+          <span className="block font-black text-[#e6edea] text-base leading-none">
             {record.area}
           </span>
-          <span
-            className={`mt-1 inline-block text-xs px-1.5 py-0.5 rounded-full font-semibold ${TYPE_STYLE[record.type]}`}
-          >
+          <span className={`mt-1 inline-block text-xs px-1.5 py-0.5 rounded-full font-semibold ${TYPE_STYLE[record.type]}`}>
             {TYPE_LABELS[record.type]}
           </span>
         </div>
 
-        {/* Info */}
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-stone-900 text-sm truncate">
+          <p className="font-semibold text-[#e6edea] text-sm truncate">
             {record.staff_name}
           </p>
-          <p className="text-xs text-stone-400 mt-0.5">
+          <p className="text-xs text-[#7d9990] mt-0.5">
             {AREA_LABELS[record.area as ChecklistArea] ?? record.area}
           </p>
         </div>
 
-        {/* Estado y hora */}
         <div className="shrink-0 text-right">
-          <p className="text-xs text-stone-500">{fmtTime(record.completed_at)}</p>
+          <p className="text-xs text-[#7d9990]">{fmtTime(record.completed_at)}</p>
           <span
-            className={`mt-1 inline-block text-xs font-bold px-2 py-0.5 rounded-full ${
+            className={`mt-1 inline-block text-xs font-bold px-2 py-0.5 rounded-full border ${
               allOk
-                ? 'bg-emerald-100 text-emerald-700'
-                : 'bg-amber-100 text-amber-700'
+                ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300'
+                : 'bg-amber-950/60 border-amber-700/50 text-amber-300'
             }`}
           >
             {record.checked_items}/{record.total_items}
           </span>
-          <span className="block text-stone-400 text-xs mt-0.5">
+          <span className="block text-[#7d9990] text-xs mt-0.5">
             {expanded ? '▲' : '▼'}
           </span>
         </div>
       </button>
 
-      {/* Detalle expandido */}
       {expanded && record.checks.length > 0 && (
-        <ul className="border-t border-stone-100 divide-y divide-stone-100">
+        <ul className="border-t border-[#223530] divide-y divide-[#223530]">
           {record.checks.map((c) => (
-            <li
-              key={c.item_key}
-              className="flex items-center gap-3 px-4 py-2.5"
-            >
+            <li key={c.item_key} className="flex items-center gap-3 px-4 py-2.5">
               <span
                 className={`shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
                   c.checked
-                    ? 'bg-emerald-100 text-emerald-600'
-                    : 'bg-red-100 text-red-500'
+                    ? 'bg-emerald-950/60 border border-emerald-700/50 text-emerald-400'
+                    : 'bg-red-950/60 border border-red-800/50 text-red-400'
                 }`}
               >
                 {c.checked ? '✓' : '✗'}
               </span>
               <span
                 className={`text-sm flex-1 ${
-                  c.checked ? 'text-stone-700' : 'text-stone-400 line-through'
+                  c.checked ? 'text-[#7d9990] line-through' : 'text-[#e6edea]'
                 }`}
               >
                 {c.item_label}
               </span>
               {c.checked && c.checked_at && (
-                <span className="shrink-0 text-xs text-stone-400">
+                <span className="shrink-0 text-xs text-[#7d9990]">
                   {fmtTime(c.checked_at)}
                 </span>
               )}
@@ -233,22 +223,18 @@ export default function ChecklistClient({
   const [activeTab, setActiveTab] = useState<'nueva' | 'historial'>('nueva');
   const [history, setHistory] = useState<HistoryRecord[]>(initialHistory);
 
-  // ── Configuración de la nueva revisión ───────────────────────────────
   const [selectedArea, setSelectedArea] = useState<ChecklistArea>('PB');
   const [selectedType, setSelectedType] = useState<ChecklistType>('apertura');
   const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id ?? '');
 
-  // checks: itemKey → { checked, checkedAt }
   type CheckState = { checked: boolean; checkedAt: string | null };
   const [checks, setChecks] = useState<Map<string, CheckState>>(new Map());
 
-  // Ítems actuales según área + tipo
   const currentItems = useMemo(
     () => CHECKLIST[selectedArea][selectedType],
     [selectedArea, selectedType],
   );
 
-  // Re-inicializar checks cuando cambia área o tipo
   useMemo(() => {
     const next = new Map<string, CheckState>(
       CHECKLIST[selectedArea][selectedType].map((item) => [
@@ -270,7 +256,6 @@ export default function ChecklistClient({
       ? Math.round((checkedCount / currentItems.length) * 100)
       : 0;
 
-  // ── Toggle ítem ───────────────────────────────────────────────────────
   function handleToggleItem(key: string) {
     setChecks((prev) => {
       const next = new Map(prev);
@@ -283,7 +268,6 @@ export default function ChecklistClient({
     });
   }
 
-  // ── Enviar revisión ───────────────────────────────────────────────────
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -316,7 +300,6 @@ export default function ChecklistClient({
       });
 
       setHistory((prev) => [result, ...prev]);
-      // Resetear para nueva revisión
       setChecks(
         new Map(
           currentItems.map((item) => [
@@ -328,7 +311,7 @@ export default function ChecklistClient({
       setActiveTab('historial');
     } catch (err) {
       setSubmitError(
-        err instanceof Error ? err.message : 'Error al registrar la revisión.',
+        err instanceof Error ? err.message : 'Error al registrar la revision.',
       );
     }
     setSubmitting(false);
@@ -337,47 +320,47 @@ export default function ChecklistClient({
   const canSubmit = allChecked && !!selectedStaffId && !submitting;
 
   return (
-    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
+    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
+      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
-          className="text-stone-400 hover:text-stone-700 text-xl leading-none"
+          className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
           aria-label="Volver"
         >
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-600 text-lg leading-tight">
+          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
             Checklist
           </h1>
-          <p className="text-xs text-stone-500">
+          <p className="text-xs text-[#7d9990]">
             {today}
             {history.length > 0 && (
-              <span className="ml-1 font-semibold text-stone-600">
-                &middot; {history.length} revisión{history.length !== 1 ? 'es' : ''} hoy
+              <span className="ml-1 font-semibold text-[#e6edea]">
+                &middot; {history.length} revision{history.length !== 1 ? 'es' : ''} hoy
               </span>
             )}
           </p>
         </div>
       </header>
 
-      {/* Tabs — segmented control */}
-      <div className="bg-white border-b border-stone-200 sticky top-[57px] z-10 px-4 py-2">
-        <div className="p-1 bg-stone-100 rounded-xl flex">
+      {/* Tabs */}
+      <div className="bg-[#141f1c] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
+        <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
           {(['nueva', 'historial'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`flex-1 h-9 rounded-lg text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
                 activeTab === tab
-                  ? 'bg-white text-stone-900 shadow-sm'
-                  : 'text-stone-500 hover:text-stone-700'
+                  ? 'bg-[#1c2b27] text-[#e6edea] shadow-sm'
+                  : 'text-[#7d9990] hover:text-[#e6edea]'
               }`}
             >
               {tab === 'historial'
                 ? `Historial${history.length > 0 ? ` (${history.length})` : ''}`
-                : 'Nueva revisión'}
+                : 'Nueva revision'}
             </button>
           ))}
         </div>
@@ -388,10 +371,9 @@ export default function ChecklistClient({
         {/* ── Tab: Nueva revisión ──────────────────────────────────────── */}
         {activeTab === 'nueva' && (
           <>
-            {/* Selector de área */}
-            <section className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 space-y-3">
-              <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider">
-                Área
+            <section className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 space-y-3">
+              <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
+                Area
               </h2>
               <div className="grid grid-cols-4 gap-2">
                 {AREAS.map((area) => (
@@ -402,13 +384,13 @@ export default function ChecklistClient({
                     className={`min-h-[60px] rounded-xl text-sm font-bold transition duration-150 ease-out active:scale-[0.98] select-none flex flex-col items-center justify-center gap-0.5 ${
                       selectedArea === area
                         ? 'bg-amber-500 text-white shadow-sm'
-                        : 'bg-stone-100 text-stone-600 hover:bg-amber-50'
+                        : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
                     }`}
                   >
                     <span className="text-base font-black">{area}</span>
                     <span
                       className={`text-[10px] font-normal leading-tight text-center ${
-                        selectedArea === area ? 'text-amber-100' : 'text-stone-400'
+                        selectedArea === area ? 'text-amber-100' : 'text-[#7d9990]'
                       }`}
                     >
                       {AREA_LABELS[area].replace(' ', '\u00A0')}
@@ -417,9 +399,8 @@ export default function ChecklistClient({
                 ))}
               </div>
 
-              {/* Tipo */}
-              <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider pt-1">
-                Tipo de revisión
+              <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider pt-1">
+                Tipo de revision
               </h2>
               <div className="flex gap-2">
                 {TYPES.map((type) => (
@@ -431,8 +412,8 @@ export default function ChecklistClient({
                       selectedType === type
                         ? type === 'apertura'
                           ? 'bg-amber-500 text-white shadow-sm'
-                          : 'bg-sky-500 text-white shadow-sm'
-                        : 'bg-stone-100 text-stone-500 hover:bg-stone-200'
+                          : 'bg-sky-600 text-white shadow-sm'
+                        : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
                     }`}
                   >
                     {TYPE_LABELS[type]}
@@ -440,19 +421,18 @@ export default function ChecklistClient({
                 ))}
               </div>
 
-              {/* Responsable */}
-              <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider pt-1">
+              <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider pt-1">
                 Responsable del turno
               </h2>
               {staff.length === 0 ? (
-                <p className="text-sm text-stone-400 italic">
+                <p className="text-sm text-[#7d9990] italic">
                   Sin colaboradores activos.
                 </p>
               ) : (
                 <select
                   value={selectedStaffId}
                   onChange={(e) => setSelectedStaffId(e.target.value)}
-                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base bg-white"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
                 >
                   <option value="">Seleccionar responsable...</option>
                   {staff.map((s) => (
@@ -465,17 +445,17 @@ export default function ChecklistClient({
             </section>
 
             {/* Progreso */}
-            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm px-4 py-3 flex items-center gap-4">
+            <div className="bg-[#141f1c] border border-[#223530] rounded-2xl shadow-sm px-4 py-3 flex items-center gap-4">
               <div className="flex-1">
-                <div className="flex justify-between text-xs text-stone-500 mb-1.5">
-                  <span className="font-semibold text-stone-700">
+                <div className="flex justify-between text-xs text-[#7d9990] mb-1.5">
+                  <span className="font-semibold text-[#e6edea]">
                     {AREA_LABELS[selectedArea]} — {TYPE_LABELS[selectedType]}
                   </span>
                   <span>
-                    {checkedCount}/{currentItems.length} ítems
+                    {checkedCount}/{currentItems.length} items
                   </span>
                 </div>
-                <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
+                <div className="h-2 bg-[#1c2b27] rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
                       allChecked ? 'bg-emerald-500' : 'bg-amber-500'
@@ -485,15 +465,13 @@ export default function ChecklistClient({
                 </div>
               </div>
               {allChecked && (
-                <span className="shrink-0 text-emerald-600 font-black text-lg">
-                  ✓
-                </span>
+                <span className="shrink-0 text-emerald-400 font-black text-lg">✓</span>
               )}
             </div>
 
-            {/* Lista de ítems */}
-            <section className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
-              <ul className="divide-y divide-stone-100">
+            {/* Lista de items */}
+            <section className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+              <ul className="divide-y divide-[#223530]">
                 {currentItems.map((item) => {
                   const state = checks.get(item.key) ?? {
                     checked: false,
@@ -504,16 +482,15 @@ export default function ChecklistClient({
                       <button
                         type="button"
                         onClick={() => handleToggleItem(item.key)}
-                        className={`w-full flex items-center gap-3 px-4 py-4 text-left transition active:bg-stone-50 ${
-                          state.checked ? 'bg-emerald-50/50' : 'bg-white'
+                        className={`w-full flex items-center gap-3 px-4 py-4 text-left transition active:bg-[#1c2b27] ${
+                          state.checked ? 'bg-emerald-950/20' : ''
                         }`}
                       >
-                        {/* Checkbox táctil */}
                         <span
                           className={`shrink-0 w-7 h-7 rounded-lg border-2 flex items-center justify-center transition ${
                             state.checked
                               ? 'bg-emerald-500 border-emerald-500 text-white'
-                              : 'border-stone-300 bg-white'
+                              : 'border-[#223530] bg-[#1c2b27]'
                           }`}
                         >
                           {state.checked && (
@@ -531,20 +508,18 @@ export default function ChecklistClient({
                           )}
                         </span>
 
-                        {/* Texto del ítem */}
                         <span
                           className={`text-sm leading-snug flex-1 ${
                             state.checked
-                              ? 'text-stone-400 line-through'
-                              : 'text-stone-800'
+                              ? 'text-[#7d9990] line-through'
+                              : 'text-[#e6edea]'
                           }`}
                         >
                           {item.label}
                         </span>
 
-                        {/* Hora de marcado */}
                         {state.checked && state.checkedAt && (
-                          <span className="shrink-0 text-xs text-stone-400">
+                          <span className="shrink-0 text-xs text-[#7d9990]">
                             {fmtTime(state.checkedAt)}
                           </span>
                         )}
@@ -555,14 +530,12 @@ export default function ChecklistClient({
               </ul>
             </section>
 
-            {/* Error */}
             {submitError && (
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700 font-medium">
+              <div className="p-3 rounded-xl bg-red-950/40 border border-red-800/50 text-sm text-red-300 font-medium">
                 {submitError}
               </div>
             )}
 
-            {/* Botón registrar */}
             <button
               type="button"
               disabled={!canSubmit}
@@ -571,8 +544,8 @@ export default function ChecklistClient({
                 canSubmit
                   ? selectedType === 'apertura'
                     ? 'bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white'
-                    : 'bg-sky-500 hover:bg-sky-600 active:scale-[0.98] text-white'
-                  : 'bg-stone-200 text-stone-400 cursor-not-allowed'
+                    : 'bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white'
+                  : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] cursor-not-allowed'
               }`}
             >
               {submitting
@@ -580,7 +553,7 @@ export default function ChecklistClient({
                 : !selectedStaffId
                 ? 'Selecciona un responsable'
                 : !allChecked
-                ? `Faltan ${currentItems.length - checkedCount} ítem${currentItems.length - checkedCount !== 1 ? 's' : ''}`
+                ? `Faltan ${currentItems.length - checkedCount} item${currentItems.length - checkedCount !== 1 ? 's' : ''}`
                 : `Registrar ${TYPE_LABELS[selectedType].toLowerCase()} de ${selectedArea}`}
             </button>
           </>
@@ -590,7 +563,7 @@ export default function ChecklistClient({
         {activeTab === 'historial' && (
           <>
             {history.length === 0 ? (
-              <div className="text-center py-14 text-stone-400 text-sm">
+              <div className="text-center py-14 text-[#7d9990] text-sm">
                 Sin revisiones registradas hoy.
               </div>
             ) : (

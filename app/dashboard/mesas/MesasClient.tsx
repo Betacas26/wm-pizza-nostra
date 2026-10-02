@@ -1,22 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import { assignTableAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 type Area = 'PB' | 'PA' | 'TE';
+type Selection = string | 'delete' | null;
 
-export interface WorkerSlotData {
+export interface MeseroData {
   id: string;
   name: string;
-  tables: string[];
-  isHome: boolean;
-}
-
-export interface AreaData {
-  area: Area;
-  label: string;
-  totalTables: number;
-  workers: WorkerSlotData[];
+  home_area: string | null;
 }
 
 export interface WeeklyOverage {
@@ -25,119 +19,249 @@ export interface WeeklyOverage {
   count: number;
 }
 
+// ── Constantes ─────────────────────────────────────────────────────────────
+const AREA_TABLES: Record<Area, string[]> = {
+  PB: ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'BR'],
+  PA: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'PV'],
+  TE: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11'],
+};
+
+const AREA_ORDER: Area[] = ['PB', 'PA', 'TE'];
+
+const AREA_LABELS: Record<Area, string> = {
+  PB: 'Planta Baja',
+  PA: 'Planta Alta',
+  TE: 'Terraza',
+};
+
+const STAFF_COLORS = [
+  {
+    pill: 'bg-emerald-950/70 border-emerald-700/60 text-emerald-200',
+    ring: 'ring-emerald-400',
+    dot: 'bg-emerald-400',
+    table: 'bg-emerald-950/50 border-emerald-700/60 text-emerald-200',
+  },
+  {
+    pill: 'bg-purple-950/70 border-purple-700/60 text-purple-200',
+    ring: 'ring-purple-400',
+    dot: 'bg-purple-400',
+    table: 'bg-purple-950/50 border-purple-700/60 text-purple-200',
+  },
+  {
+    pill: 'bg-rose-950/70 border-rose-800/60 text-rose-200',
+    ring: 'ring-rose-400',
+    dot: 'bg-rose-400',
+    table: 'bg-rose-950/50 border-rose-800/60 text-rose-200',
+  },
+  {
+    pill: 'bg-sky-950/70 border-sky-800/60 text-sky-200',
+    ring: 'ring-sky-400',
+    dot: 'bg-sky-400',
+    table: 'bg-sky-950/50 border-sky-800/60 text-sky-200',
+  },
+  {
+    pill: 'bg-amber-950/70 border-amber-800/60 text-amber-200',
+    ring: 'ring-amber-400',
+    dot: 'bg-amber-400',
+    table: 'bg-amber-950/50 border-amber-800/60 text-amber-200',
+  },
+  {
+    pill: 'bg-lime-950/70 border-lime-800/60 text-lime-200',
+    ring: 'ring-lime-400',
+    dot: 'bg-lime-400',
+    table: 'bg-lime-950/50 border-lime-800/60 text-lime-200',
+  },
+];
+
 // ── Componente ─────────────────────────────────────────────────────────────
 export default function MesasClient({
-  areasData,
-  noMeseros,
+  meseros,
+  initialAssignments,
+  today,
   weeklyOverages = [],
 }: {
-  areasData: AreaData[];
-  noMeseros: boolean;
+  meseros: MeseroData[];
+  initialAssignments: { tableCode: string; staffId: string }[];
+  today: string;
   weeklyOverages?: WeeklyOverage[];
 }) {
-  const [activeArea, setActiveArea] = useState<Area>(areasData[0]?.area ?? 'PB');
+  const [activeArea, setActiveArea] = useState<Area>('PB');
+  const [selected, setSelected] = useState<Selection>(null);
+  const [assignments, setAssignments] = useState<Map<string, string>>(
+    () => new Map(initialAssignments.map((a) => [a.tableCode, a.staffId])),
+  );
 
-  const current = areasData.find((a) => a.area === activeArea);
+  const colorMap = new Map<string, number>(
+    meseros.map((m, i) => [m.id, i % STAFF_COLORS.length]),
+  );
+  const getColor = (staffId: string) =>
+    STAFF_COLORS[colorMap.get(staffId) ?? 0];
+
+  function handleTableTap(tableCode: string) {
+    if (selected === null) return;
+
+    const prev = assignments.get(tableCode) ?? null;
+    const next = selected === 'delete' ? null : selected;
+
+    setAssignments((cur) => {
+      const m = new Map(cur);
+      if (next === null) m.delete(tableCode);
+      else m.set(tableCode, next);
+      return m;
+    });
+
+    assignTableAction(tableCode, next, today).catch(() => {
+      setAssignments((cur) => {
+        const m = new Map(cur);
+        if (prev === null) m.delete(tableCode);
+        else m.set(tableCode, prev);
+        return m;
+      });
+    });
+  }
+
+  const currentTables = AREA_TABLES[activeArea];
 
   return (
     <>
-      {noMeseros && (
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800">
-          No hay meseros activos con turno hoy. Si aun no se capturaron
-          horarios, se usaran todos los meseros activos.
-        </div>
-      )}
-
-      {/* Alerta de rotación semanal (spec §1: máx. 2 repeticiones/área/semana) */}
+      {/* Alerta rotación semanal */}
       {weeklyOverages.length > 0 && (
-        <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-1">
-          <p className="text-xs font-bold text-rose-700 uppercase tracking-wider mb-1">
-            Rotación semanal excedida
+        <div className="bg-rose-950/40 border border-rose-800/50 rounded-2xl p-4 space-y-1">
+          <p className="text-xs font-bold text-rose-400 uppercase tracking-wider mb-1">
+            Rotacion semanal excedida
           </p>
           {weeklyOverages.map((ovg, i) => (
-            <p key={i} className="text-sm text-rose-800">
+            <p key={i} className="text-sm text-rose-300">
               <span className="font-semibold">{ovg.name}</span>{' '}
               en {ovg.area}{' '}
-              <span className="font-mono text-xs bg-rose-100 px-1.5 py-0.5 rounded-full">
-                {ovg.count} días
+              <span className="font-mono text-xs bg-rose-900/60 px-1.5 py-0.5 rounded-full">
+                {ovg.count} dias
               </span>
             </p>
           ))}
         </div>
       )}
 
-      {/* Segmented control — áreas */}
-      <div className="p-1 bg-stone-200/80 rounded-xl flex">
-        {areasData.map((a) => (
+      {/* Carrusel de seleccion */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+        <button
+          onClick={() => setSelected((prev) => (prev === 'delete' ? null : 'delete'))}
+          className={`shrink-0 h-10 px-3 rounded-xl border font-bold text-sm transition duration-150 ease-out active:scale-[0.98] select-none ${
+            selected === 'delete'
+              ? 'bg-red-900/60 border-red-600/80 text-red-200 ring-2 ring-red-400 scale-105'
+              : 'bg-[#1c2b27] border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
+          }`}
+        >
+          ⌫ Borrar
+        </button>
+
+        {meseros.length === 0 ? (
+          <span className="shrink-0 h-10 flex items-center text-sm text-[#7d9990] italic px-1">
+            Sin meseros activos
+          </span>
+        ) : (
+          meseros.map((m) => {
+            const color = getColor(m.id);
+            const isSelected = selected === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setSelected((prev) => (prev === m.id ? null : m.id))}
+                className={`shrink-0 h-10 px-3 rounded-xl border font-semibold text-sm transition duration-150 ease-out active:scale-[0.98] select-none ${color.pill} ${
+                  isSelected
+                    ? `ring-2 ${color.ring} scale-105 opacity-100`
+                    : 'opacity-60 hover:opacity-90'
+                }`}
+              >
+                {m.name.split(' ')[0]}
+              </button>
+            );
+          })
+        )}
+      </div>
+
+      {/* Selector de area */}
+      <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
+        {AREA_ORDER.map((area) => (
           <button
-            key={a.area}
-            onClick={() => setActiveArea(a.area)}
+            key={area}
+            onClick={() => setActiveArea(area)}
             className={`flex-1 h-9 rounded-lg text-xs font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
-              activeArea === a.area
-                ? 'bg-white text-stone-900 shadow-sm'
-                : 'text-stone-600 hover:text-stone-800'
+              activeArea === area
+                ? 'bg-[#1c2b27] text-[#e6edea] shadow-sm'
+                : 'text-[#7d9990] hover:text-[#e6edea]'
             }`}
           >
-            {a.area}
+            {area}
           </button>
         ))}
       </div>
 
-      {/* Tarjeta del área activa */}
-      {current && (
-        <section className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
-          <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
-            <h2 className="font-bold text-stone-900 text-sm">
-              {current.label}
-              <span className="ml-2 text-xs font-normal text-stone-400">
-                ({current.area})
-              </span>
-            </h2>
-            <span className="text-xs text-stone-400">
-              {current.totalTables} mesas
+      {/* Grid de mesas */}
+      <section className="bg-[#141f1c] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+        <div className="px-4 py-3 border-b border-[#223530] flex items-center justify-between">
+          <h2 className="font-bold text-[#e6edea] text-sm">
+            {AREA_LABELS[activeArea]}
+            <span className="ml-2 text-xs font-normal text-[#7d9990]">
+              ({activeArea})
             </span>
-          </div>
+          </h2>
+          <span className="text-xs text-[#7d9990]">{currentTables.length} mesas</span>
+        </div>
 
-          {current.workers.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-stone-400 italic">
-              Sin asignacion
-            </p>
-          ) : (
-            <ul className="divide-y divide-stone-100">
-              {current.workers.map((w) => (
-                <li key={w.id} className="px-4 py-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-semibold text-sm text-stone-800">
-                      {w.name}
-                    </span>
-                    {w.isHome ? (
-                      <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                        Area propia
-                      </span>
-                    ) : (
-                      <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">
-                        Cobertura
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {w.tables.map((t) => (
-                      <span
-                        key={t}
-                        className="text-xs font-mono bg-stone-100 text-stone-700 px-2 py-1 rounded-lg"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="mt-1.5 text-xs text-stone-400">
-                    {w.tables.length} mesa{w.tables.length !== 1 ? 's' : ''}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <div className="p-3 grid grid-cols-3 gap-2">
+          {currentTables.map((tableCode) => {
+            const assignedId = assignments.get(tableCode);
+            const color = assignedId ? getColor(assignedId) : null;
+            const assignedName = assignedId
+              ? meseros.find((m) => m.id === assignedId)?.name?.split(' ')[0] ?? '?'
+              : null;
+
+            return (
+              <button
+                key={tableCode}
+                onClick={() => handleTableTap(tableCode)}
+                className={`h-16 rounded-xl border font-bold text-sm flex flex-col items-center justify-center gap-0.5 transition duration-150 ease-out select-none
+                  ${selected !== null ? 'active:scale-[0.94] cursor-pointer' : 'cursor-default'}
+                  ${color ? color.table : 'bg-[#1c2b27] border-[#223530] text-[#7d9990]'}
+                `}
+              >
+                <span className="font-mono font-black text-base leading-none">
+                  {tableCode}
+                </span>
+                {assignedName ? (
+                  <span className="text-[10px] font-medium leading-tight opacity-80">
+                    {assignedName}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-[#7d9990]/50 leading-tight">
+                    Libre
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Leyenda */}
+      {meseros.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {meseros.map((m) => {
+            const color = getColor(m.id);
+            const count = [...assignments.values()].filter((id) => id === m.id).length;
+            return (
+              <div
+                key={m.id}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs ${color.pill}`}
+              >
+                <span className={`w-2 h-2 rounded-full shrink-0 ${color.dot}`} />
+                <span className="font-semibold">{m.name.split(' ')[0]}</span>
+                <span className="opacity-50">({count})</span>
+              </div>
+            );
+          })}
+        </div>
       )}
     </>
   );

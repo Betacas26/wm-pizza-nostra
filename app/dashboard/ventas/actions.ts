@@ -137,6 +137,7 @@ export async function saveProductSalesAction(data: ProductSaleInput): Promise<vo
     category: item.category,
     product_name: item.product_name,
     quantity: item.quantity,
+    unit_price: 0,
   }));
 
   const admin = createAdminClient();

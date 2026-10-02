@@ -26,7 +26,7 @@ const CRITERIA: { key: string; label: string; description: string }[] = [
 const SCORE_BTN_ON: Record<number, string> = {
   1: 'bg-red-600 text-white shadow-sm',
   2: 'bg-orange-500 text-white shadow-sm',
-  3: 'bg-amber-500 text-white shadow-sm',
+  3: 'bg-[#7A1D2E] text-white shadow-sm',
   4: 'bg-sky-600 text-white shadow-sm',
   5: 'bg-emerald-600 text-white shadow-sm',
 };
@@ -42,7 +42,7 @@ const SCORE_LABEL: Record<number, string> = {
 const SCORE_BADGE: Record<number, string> = {
   1: 'bg-red-950/60 border border-red-800/50 text-red-300',
   2: 'bg-orange-950/60 border border-orange-800/50 text-orange-300',
-  3: 'bg-amber-950/60 border border-amber-700/50 text-amber-300',
+  3: 'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]',
   4: 'bg-sky-950/60 border border-sky-700/50 text-sky-300',
   5: 'bg-emerald-950/60 border border-emerald-700/50 text-emerald-300',
 };
@@ -50,7 +50,7 @@ const SCORE_BADGE: Record<number, string> = {
 function avgBadgeClass(avg: number): string {
   if (avg >= 4.5) return 'bg-emerald-950/60 border border-emerald-700/50 text-emerald-300';
   if (avg >= 4.0) return 'bg-sky-950/60 border border-sky-700/50 text-sky-300';
-  if (avg >= 3.0) return 'bg-amber-950/60 border border-amber-700/50 text-amber-300';
+  if (avg >= 3.0) return 'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]';
   if (avg >= 2.0) return 'bg-orange-950/60 border border-orange-800/50 text-orange-300';
   return 'bg-red-950/60 border border-red-800/50 text-red-300';
 }
@@ -58,7 +58,7 @@ function avgBadgeClass(avg: number): string {
 function avgTextClass(avg: number): string {
   if (avg >= 4.5) return 'text-emerald-400';
   if (avg >= 4.0) return 'text-sky-400';
-  if (avg >= 3.0) return 'text-amber-400';
+  if (avg >= 3.0) return 'text-[#E8899A]';
   if (avg >= 2.0) return 'text-orange-400';
   return 'text-red-400';
 }
@@ -102,7 +102,7 @@ function EvalCard({ record }: { record: EvaluationRecord }) {
   const avg = record.average_score;
 
   return (
-    <div className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -352,9 +352,9 @@ export default function RubricasClient({
     : [{ key: 'historial', label: 'Historial' }];
 
   return (
-    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
+    <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
+      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
           className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
@@ -363,7 +363,7 @@ export default function RubricasClient({
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Rubricas
           </h1>
           <p className="text-xs text-[#7d9990]">
@@ -373,7 +373,7 @@ export default function RubricasClient({
       </header>
 
       {/* Tabs */}
-      <div className="bg-[#141f1c] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
+      <div className="bg-[#151D1A] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
         <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
           {tabs.map((tab) => (
             <button
@@ -396,7 +396,7 @@ export default function RubricasClient({
         {/* ── Tab: Nueva evaluacion ─────────────────────────────────────── */}
         {activeTab === 'nueva' && isManager && (
           <>
-            <section className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 space-y-3">
+            <section className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 space-y-3">
               <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
                 Colaborador a evaluar
               </h2>
@@ -406,7 +406,7 @@ export default function RubricasClient({
                 <select
                   value={selectedStaffId}
                   onChange={(e) => setSelectedStaffId(e.target.value)}
-                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
                 >
                   <option value="">Seleccionar colaborador...</option>
                   {staff.map((s) => (
@@ -421,7 +421,7 @@ export default function RubricasClient({
             </section>
 
             {scoredCount > 0 && (
-              <div className="bg-[#141f1c] border border-[#223530] rounded-2xl shadow-sm px-4 py-3 flex items-center justify-between">
+              <div className="bg-[#151D1A] border border-[#223530] rounded-2xl shadow-sm px-4 py-3 flex items-center justify-between">
                 <div>
                   <p className="text-xs text-[#7d9990] uppercase tracking-wider font-bold">
                     Promedio actual
@@ -441,7 +441,7 @@ export default function RubricasClient({
               </div>
             )}
 
-            <section className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+            <section className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
               <div className="px-4 py-3 border-b border-[#223530]">
                 <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
                   Criterios de evaluacion — Puntaje 1 al 5
@@ -489,7 +489,7 @@ export default function RubricasClient({
               </ul>
             </section>
 
-            <section className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 space-y-2">
+            <section className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 space-y-2">
               <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
                 Observaciones
               </h2>
@@ -499,7 +499,7 @@ export default function RubricasClient({
                 placeholder="Aspectos destacados, areas de mejora u observaciones adicionales (opcional)..."
                 rows={3}
                 maxLength={500}
-                className="w-full px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base resize-none focus:outline-none focus:ring-2 focus:ring-amber-500 placeholder:text-[#7d9990]"
+                className="w-full px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base resize-none focus:outline-none focus:ring-2 focus:ring-[#7A1D2E] placeholder:text-[#7d9990]"
               />
               {observations.length > 0 && (
                 <p className="text-xs text-[#7d9990] text-right">
@@ -520,7 +520,7 @@ export default function RubricasClient({
               onClick={handleSubmit}
               className={`w-full min-h-[52px] font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm ${
                 canSubmit
-                  ? 'bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white'
+                  ? 'bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white'
                   : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] cursor-not-allowed'
               }`}
             >
@@ -541,7 +541,7 @@ export default function RubricasClient({
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500 capitalize"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E] capitalize"
             >
               {monthOptions.map((opt) => (
                 <option key={opt.value} value={opt.value} className="capitalize">
@@ -560,7 +560,7 @@ export default function RubricasClient({
               </div>
             ) : (
               <>
-                <section className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+                <section className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
                   <div className="px-4 py-3 border-b border-[#223530] flex items-center justify-between">
                     <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
                       Desempeno mensual

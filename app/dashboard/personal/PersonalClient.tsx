@@ -34,7 +34,7 @@ const ROLE_LABELS: Record<Role, string> = {
 };
 
 const ROLE_BADGE: Record<Role, string> = {
-  mesero:     'bg-amber-950/60 border border-amber-700/50 text-amber-300',
+  mesero:     'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]',
   ayudante:   'bg-orange-950/60 border border-orange-800/50 text-orange-300',
   hostess:    'bg-pink-950/60 border border-pink-800/50 text-pink-300',
   barrero:    'bg-teal-950/60 border border-teal-700/50 text-teal-300',
@@ -147,9 +147,9 @@ export default function PersonalClient({
   const totalActive = profiles.filter((p) => p.active).length;
 
   return (
-    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
+    <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
+      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
           className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
@@ -158,7 +158,7 @@ export default function PersonalClient({
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Personal
           </h1>
           <p className="text-xs text-[#7d9990]">
@@ -174,7 +174,7 @@ export default function PersonalClient({
             setCreateError(null);
             setShowCreate(true);
           }}
-          className="bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white text-sm font-bold px-3 min-h-[44px] rounded-xl shadow transition duration-150 ease-out select-none"
+          className="bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white text-sm font-bold px-3 min-h-[44px] rounded-xl shadow transition duration-150 ease-out select-none"
         >
           + Nuevo
         </button>
@@ -195,7 +195,7 @@ export default function PersonalClient({
               <span className="font-normal normal-case">({members.length})</span>
             </h2>
 
-            <div className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+            <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
               <ul className="divide-y divide-[#223530]">
                 {members.map((profile) => {
                   const badgeClass =
@@ -245,7 +245,7 @@ export default function PersonalClient({
                                       onClick={() => handleUpdateArea(profile.id, area)}
                                       className={`text-xs px-2 py-0.5 rounded-full font-semibold transition ${
                                         profile.home_area === area
-                                          ? 'bg-amber-500 text-white'
+                                          ? 'bg-[#7A1D2E] text-white'
                                           : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
                                       }`}
                                     >
@@ -297,7 +297,7 @@ export default function PersonalClient({
             if (e.target === e.currentTarget) setShowCreate(false);
           }}
         >
-          <div className="bg-[#141f1c] border border-[#223530] rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+          <div className="bg-[#151D1A] border border-[#223530] rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-extrabold text-[#e6edea] text-base">
                 Nuevo colaborador
@@ -328,7 +328,7 @@ export default function PersonalClient({
                   value={formName}
                   onChange={(e) => setFormName(e.target.value)}
                   placeholder="Ej. Juan Perez"
-                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
                 />
               </div>
 
@@ -348,7 +348,7 @@ export default function PersonalClient({
                   placeholder="Ej. juan.perez"
                   autoCapitalize="none"
                   autoCorrect="off"
-                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base font-mono focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
                 />
                 {formUsername && (
                   <p className="text-xs text-[#7d9990] mt-1 pl-1">
@@ -368,7 +368,7 @@ export default function PersonalClient({
                   value={formPassword}
                   onChange={(e) => setFormPassword(e.target.value)}
                   placeholder="Minimo 6 caracteres"
-                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
                 />
               </div>
 
@@ -397,7 +397,7 @@ export default function PersonalClient({
               <button
                 type="submit"
                 disabled={creating}
-                className="w-full min-h-[44px] bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl shadow transition text-sm disabled:opacity-50"
+                className="w-full min-h-[44px] bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition text-sm disabled:opacity-50"
               >
                 {creating ? 'Creando...' : 'Crear colaborador'}
               </button>

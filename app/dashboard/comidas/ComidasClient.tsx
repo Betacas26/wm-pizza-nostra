@@ -140,9 +140,9 @@ export default function ComidasClient({
   }
 
   return (
-    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
+    <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
+      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
           className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
@@ -151,13 +151,13 @@ export default function ComidasClient({
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Comidas
           </h1>
           <p className="text-xs text-[#7d9990]">
             {today} &middot; 30 min
             {activeCount > 0 && (
-              <span className="ml-1 font-semibold text-amber-500">
+              <span className="ml-1 font-semibold text-[#E8899A]">
                 &middot; {activeCount} activa{activeCount !== 1 ? 's' : ''}
               </span>
             )}
@@ -165,7 +165,7 @@ export default function ComidasClient({
         </div>
       </header>
 
-      <main className="p-3 max-w-xl mx-auto space-y-2.5">
+      <main className="p-3 max-w-xl mx-auto space-y-2.5 pb-6">
         {staff.length === 0 && (
           <div className="text-center py-12 text-[#7d9990] text-sm">
             Sin colaboradores activos.
@@ -210,7 +210,7 @@ export default function ComidasClient({
           return (
             <div
               key={member.id}
-              className="bg-[#141f1c] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]"
+              className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]"
             >
               <div className="px-4 py-3 flex items-center gap-3">
                 {/* Semaforo */}
@@ -285,7 +285,7 @@ export default function ComidasClient({
                     <button
                       onClick={() => handleStart(member.id)}
                       disabled={isStarting}
-                      className="min-h-[44px] px-3 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white transition duration-150 ease-out select-none disabled:opacity-50"
+                      className="min-h-[44px] px-3 rounded-xl text-xs font-bold bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white transition duration-150 ease-out select-none disabled:opacity-50"
                     >
                       {isStarting ? '...' : 'Comer'}
                     </button>

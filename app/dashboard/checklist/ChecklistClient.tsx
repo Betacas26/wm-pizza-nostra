@@ -28,7 +28,7 @@ const TYPE_LABELS: Record<ChecklistType, string> = {
 };
 
 const TYPE_STYLE: Record<ChecklistType, string> = {
-  apertura: 'bg-amber-950/60 border border-amber-700/50 text-amber-300',
+  apertura: 'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]',
   cierre: 'bg-sky-950/60 border border-sky-700/50 text-sky-300',
 };
 
@@ -136,7 +136,7 @@ function HistoryCard({ record }: { record: HistoryRecord }) {
   const allOk = record.checked_items === record.total_items;
 
   return (
-    <div className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -166,7 +166,7 @@ function HistoryCard({ record }: { record: HistoryRecord }) {
             className={`mt-1 inline-block text-xs font-bold px-2 py-0.5 rounded-full border ${
               allOk
                 ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300'
-                : 'bg-amber-950/60 border-amber-700/50 text-amber-300'
+                : 'bg-[#420F18]/80 border-[#9E2A3E]/60 text-[#E8899A]'
             }`}
           >
             {record.checked_items}/{record.total_items}
@@ -320,9 +320,9 @@ export default function ChecklistClient({
   const canSubmit = allChecked && !!selectedStaffId && !submitting;
 
   return (
-    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
+    <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
+      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
           className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
@@ -331,7 +331,7 @@ export default function ChecklistClient({
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Checklist
           </h1>
           <p className="text-xs text-[#7d9990]">
@@ -346,7 +346,7 @@ export default function ChecklistClient({
       </header>
 
       {/* Tabs */}
-      <div className="bg-[#141f1c] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
+      <div className="bg-[#151D1A] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
         <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
           {(['nueva', 'historial'] as const).map((tab) => (
             <button
@@ -371,7 +371,7 @@ export default function ChecklistClient({
         {/* ── Tab: Nueva revisión ──────────────────────────────────────── */}
         {activeTab === 'nueva' && (
           <>
-            <section className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 space-y-3">
+            <section className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 space-y-3">
               <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
                 Area
               </h2>
@@ -383,7 +383,7 @@ export default function ChecklistClient({
                     onClick={() => setSelectedArea(area)}
                     className={`min-h-[60px] rounded-xl text-sm font-bold transition duration-150 ease-out active:scale-[0.98] select-none flex flex-col items-center justify-center gap-0.5 ${
                       selectedArea === area
-                        ? 'bg-amber-500 text-white shadow-sm'
+                        ? 'bg-[#7A1D2E] text-white shadow-sm'
                         : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
                     }`}
                   >
@@ -411,7 +411,7 @@ export default function ChecklistClient({
                     className={`flex-1 min-h-[44px] rounded-xl text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none capitalize ${
                       selectedType === type
                         ? type === 'apertura'
-                          ? 'bg-amber-500 text-white shadow-sm'
+                          ? 'bg-[#7A1D2E] text-white shadow-sm'
                           : 'bg-sky-600 text-white shadow-sm'
                         : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
                     }`}
@@ -432,7 +432,7 @@ export default function ChecklistClient({
                 <select
                   value={selectedStaffId}
                   onChange={(e) => setSelectedStaffId(e.target.value)}
-                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
                 >
                   <option value="">Seleccionar responsable...</option>
                   {staff.map((s) => (
@@ -445,7 +445,7 @@ export default function ChecklistClient({
             </section>
 
             {/* Progreso */}
-            <div className="bg-[#141f1c] border border-[#223530] rounded-2xl shadow-sm px-4 py-3 flex items-center gap-4">
+            <div className="bg-[#151D1A] border border-[#223530] rounded-2xl shadow-sm px-4 py-3 flex items-center gap-4">
               <div className="flex-1">
                 <div className="flex justify-between text-xs text-[#7d9990] mb-1.5">
                   <span className="font-semibold text-[#e6edea]">
@@ -458,7 +458,7 @@ export default function ChecklistClient({
                 <div className="h-2 bg-[#1c2b27] rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
-                      allChecked ? 'bg-emerald-500' : 'bg-amber-500'
+                      allChecked ? 'bg-emerald-500' : 'bg-[#7A1D2E]'
                     }`}
                     style={{ width: `${progressPct}%` }}
                   />
@@ -470,7 +470,7 @@ export default function ChecklistClient({
             </div>
 
             {/* Lista de items */}
-            <section className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+            <section className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
               <ul className="divide-y divide-[#223530]">
                 {currentItems.map((item) => {
                   const state = checks.get(item.key) ?? {
@@ -543,7 +543,7 @@ export default function ChecklistClient({
               className={`w-full min-h-[52px] font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm ${
                 canSubmit
                   ? selectedType === 'apertura'
-                    ? 'bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white'
+                    ? 'bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white'
                     : 'bg-sky-600 hover:bg-sky-700 active:scale-[0.98] text-white'
                   : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] cursor-not-allowed'
               }`}

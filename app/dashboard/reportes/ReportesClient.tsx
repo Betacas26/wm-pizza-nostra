@@ -206,9 +206,9 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
+    <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
+      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
           className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
@@ -217,7 +217,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Reportes
           </h1>
           <p className="text-xs text-[#7d9990] capitalize">
@@ -227,7 +227,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
       </header>
 
       {/* Subtabs */}
-      <div className="bg-[#141f1c] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
+      <div className="bg-[#151D1A] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
         <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
           {TABS.map((t) => (
             <button
@@ -249,7 +249,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         <select
           value={selectedMonth}
           onChange={(e) => setSelectedMonth(e.target.value)}
-          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500 capitalize"
+          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E] capitalize"
         >
           {monthOptions.map((opt) => (
             <option key={opt.value} value={opt.value} className="capitalize">
@@ -271,8 +271,8 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
             {/* ── Ventas ── */}
             {tab === 'ventas' && (
               <div className="space-y-3">
-                <div className="bg-amber-950/30 border border-amber-800/50 rounded-2xl p-4">
-                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">
+                <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-3">
                     Total del mes &middot; {grandTotals.count} registros
                   </p>
                   <div className="grid grid-cols-2 gap-3 text-sm">
@@ -284,7 +284,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                     </div>
                     <div>
                       <p className="text-xs text-[#7d9990]">A entregar total</p>
-                      <p className="font-mono font-bold tracking-tight text-amber-500">
+                      <p className="font-mono font-bold tracking-tight text-[#E8899A]">
                         {fmtMXN(grandTotals.to_deliver)}
                       </p>
                     </div>
@@ -294,7 +294,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                 {staffSummaries.map((s) => (
                   <div
                     key={s.staff_id}
-                    className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
+                    className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
                   >
                     <div className="flex items-center justify-between mb-2">
                       <p className="font-bold text-[#e6edea] text-sm">{s.name}</p>
@@ -315,7 +315,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                       <div className="flex justify-between col-span-2">
                         <span className="font-bold text-[#e6edea]">A entregar</span>
-                        <span className="font-bold text-amber-500">
+                        <span className="font-bold text-[#E8899A]">
                           {fmtMXN(s.to_deliver)}
                         </span>
                       </div>
@@ -340,7 +340,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                   </p>
                 </div>
 
-                <div className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+                <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-[#223530] bg-[#1c2b27]/40">
@@ -398,7 +398,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                       .map((s) => (
                         <div
                           key={s.staff_id}
-                          className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
+                          className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
                         >
                           <div className="flex items-center justify-between">
                             <p className="font-bold text-[#e6edea] text-sm">{s.name}</p>
@@ -425,12 +425,12 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                 {staffSummaries.map((s, idx) => (
                   <div
                     key={s.staff_id}
-                    className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 flex items-center gap-4"
+                    className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 flex items-center gap-4"
                   >
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-sm shrink-0 ${
                         idx === 0
-                          ? 'bg-amber-500 text-white'
+                          ? 'bg-[#7A1D2E] text-white'
                           : idx === 1
                           ? 'bg-[#223530] text-[#e6edea]'
                           : idx === 2

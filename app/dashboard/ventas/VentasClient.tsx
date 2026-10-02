@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
-import { submitSaleAction, deleteSaleAction } from './actions';
+import { submitSaleAction, deleteSaleAction, saveProductSalesAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 type SaleShift = 'Matutino' | 'Vespertino';
-type ActiveTab = 'registrar' | 'hoy' | 'mes';
+type ActiveTab = 'productos' | 'caja' | 'hoy' | 'mes';
 
 export interface StaffMember {
   id: string;
@@ -36,7 +36,17 @@ export interface VentasClientProps {
   today: string;
 }
 
-// ── Constantes ─────────────────────────────────────────────────────────────
+// ── Catálogo de productos ──────────────────────────────────────────────────
+const PRODUCT_CATALOG: Record<string, string[]> = {
+  Pizza:    ['Margarita', 'Pepperoni', 'Hawaiana', '4 Quesos', 'Vegetariana', 'BBQ Pollo'],
+  Pasta:    ['Spaghetti Bolognesa', 'Fettuccine Alfredo', 'Penne Arrabbiata'],
+  Bebida:   ['Refresco', 'Agua Natural', 'Cerveza', 'Vino Copa', 'Jugo Natural', 'Limonada'],
+  Entrada:  ['Ensalada Caesar', 'Pan de Ajo', 'Bruschetta', 'Tabla de Quesos'],
+  Postre:   ['Tiramisú', 'Panna Cotta', 'Helado', 'Cannoli'],
+};
+const CATEGORIES = Object.keys(PRODUCT_CATALOG);
+
+// ── Constantes de negocio ──────────────────────────────────────────────────
 const APORTE_PCT = 4.5;
 const CRISTALERIA = 10.0;
 const CAPITAN_PCT = 0.8;
@@ -95,13 +105,7 @@ function exportarCSV(records: SaleRecord[], monthLabel: string) {
 // ── Keypad ─────────────────────────────────────────────────────────────────
 const KEYPAD_KEYS = ['1','2','3','4','5','6','7','8','9','.','0','⌫'];
 
-function KeypadButton({
-  label,
-  onPress,
-}: {
-  label: string;
-  onPress: () => void;
-}) {
+function KeypadButton({ label, onPress }: { label: string; onPress: () => void }) {
   return (
     <button
       type="button"
@@ -122,9 +126,53 @@ export default function VentasClient({
 }: VentasClientProps) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('registrar');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('productos');
 
-  // ── Form state ─────────────────────────────────────────────────────────
+  // ── Productos del Día state ─────────────────────────────────────────────
+  const [prodStaffId, setProdStaffId] = useState(staff[0]?.id ?? '');
+  const [prodCategory, setProdCategory] = useState(CATEGORIES[0]);
+  const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
+  const [prodSaving, setProdSaving] = useState(false);
+  const [prodSavedMsg, setProdSavedMsg] = useState(false);
+
+  const totalItems = useMemo(
+    () => [...quantities.values()].reduce((a, b) => a + b, 0),
+    [quantities],
+  );
+
+  function changeQty(productName: string, delta: number) {
+    setQuantities((prev) => {
+      const next = new Map(prev);
+      const cur = next.get(productName) ?? 0;
+      const val = cur + delta;
+      if (val <= 0) next.delete(productName);
+      else next.set(productName, val);
+      return next;
+    });
+  }
+
+  async function handleSaveProductos() {
+    if (!prodStaffId || quantities.size === 0) return;
+    setProdSaving(true);
+    try {
+      const items = [...quantities.entries()].map(([product_name, quantity]) => {
+        const category =
+          Object.entries(PRODUCT_CATALOG).find(([, prods]) =>
+            prods.includes(product_name),
+          )?.[0] ?? 'Otro';
+        return { category, product_name, quantity };
+      });
+      await saveProductSalesAction({ sale_date: today, staff_id: prodStaffId, items });
+      setQuantities(new Map());
+      setProdSavedMsg(true);
+      setTimeout(() => setProdSavedMsg(false), 2500);
+    } catch {
+      // silent
+    }
+    setProdSaving(false);
+  }
+
+  // ── Cierre de Caja state ────────────────────────────────────────────────
   const [formStaffId, setFormStaffId] = useState(staff[0]?.id ?? '');
   const [formShift, setFormShift] = useState<SaleShift>('Matutino');
   const [formTotal, setFormTotal] = useState('');
@@ -139,7 +187,6 @@ export default function VentasClient({
     return calcular(n, s);
   }, [formTotal, formSanctionPct]);
 
-  // ── Keypad handler ─────────────────────────────────────────────────────
   function handleKeypad(key: string) {
     if (key === '⌫') {
       setFormTotal((prev) => prev.slice(0, -1));
@@ -264,7 +311,6 @@ export default function VentasClient({
     }
   }, [activeTab, selectedMonth, loadMonthSales]);
 
-  // ── Agregado mensual ───────────────────────────────────────────────────
   const monthSummary = useMemo(() => {
     type StaffAgg = {
       name: string;
@@ -302,12 +348,8 @@ export default function VentasClient({
       }
     }
 
-    let grandTotal = 0,
-      grandContrib = 0,
-      grandGlass = 0,
-      grandDeliver = 0,
-      grandCaptain = 0,
-      grandSanction = 0;
+    let grandTotal = 0, grandContrib = 0, grandGlass = 0,
+        grandDeliver = 0, grandCaptain = 0, grandSanction = 0;
     for (const v of byStaff.values()) {
       grandTotal += v.total;
       grandContrib += v.contribution;
@@ -329,7 +371,6 @@ export default function VentasClient({
     };
   }, [monthSales]);
 
-  // ── Totales del dia ────────────────────────────────────────────────────
   const dayTotals = useMemo(() => {
     const r = (n: number) => Math.round(n * 100) / 100;
     return {
@@ -340,7 +381,6 @@ export default function VentasClient({
     };
   }, [todaySales]);
 
-  // ── Guardar venta ──────────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!formStaffId || !formTotal) return;
@@ -381,11 +421,9 @@ export default function VentasClient({
     } catch {
       // silent
     }
-
     setSaving(false);
   }
 
-  // ── Eliminar venta ─────────────────────────────────────────────────────
   async function handleDelete(id: string) {
     if (!window.confirm('¿Eliminar esta venta?')) return;
     try {
@@ -397,15 +435,16 @@ export default function VentasClient({
   }
 
   const tabs: { key: ActiveTab; label: string }[] = [
-    { key: 'registrar', label: 'Registrar' },
-    { key: 'hoy', label: `Hoy\u00a0(${todaySales.length})` },
-    { key: 'mes', label: 'Mes' },
+    { key: 'productos', label: 'Productos' },
+    { key: 'caja',      label: 'Cierre' },
+    { key: 'hoy',       label: `Hoy\u00a0(${todaySales.length})` },
+    { key: 'mes',       label: 'Mes' },
   ];
 
   return (
-    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
+    <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
+      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
           className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
@@ -414,12 +453,12 @@ export default function VentasClient({
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Ventas
           </h1>
           <p className="text-xs text-[#7d9990]">{today}</p>
         </div>
-        {savedMsg && (
+        {(savedMsg || prodSavedMsg) && (
           <span className="text-xs font-semibold text-emerald-400">
             &#10003; Guardado
           </span>
@@ -427,13 +466,13 @@ export default function VentasClient({
       </header>
 
       {/* Tabs */}
-      <div className="bg-[#141f1c] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
+      <div className="bg-[#151D1A] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
         <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 h-9 rounded-lg text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
+              className={`flex-1 h-9 rounded-lg text-xs font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
                 activeTab === tab.key
                   ? 'bg-[#1c2b27] text-[#e6edea] shadow-sm'
                   : 'text-[#7d9990] hover:text-[#e6edea]'
@@ -447,8 +486,116 @@ export default function VentasClient({
 
       <main className="p-4 max-w-xl mx-auto">
 
-        {/* ── Tab: Registrar ──────────────────────────────────────────── */}
-        {activeTab === 'registrar' && (
+        {/* ── Tab: Productos del Día ───────────────────────────────────── */}
+        {activeTab === 'productos' && (
+          <div className="space-y-4 pt-1">
+            {/* Mesero */}
+            <div>
+              <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
+                Mesero
+              </label>
+              <select
+                value={prodStaffId}
+                onChange={(e) => setProdStaffId(e.target.value)}
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+              >
+                <option value="">Seleccionar...</option>
+                {staff.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Filtro de categoría */}
+            <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setProdCategory(cat)}
+                  className={`shrink-0 h-9 px-3 rounded-xl border text-xs font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
+                    prodCategory === cat
+                      ? 'bg-[#7A1D2E] border-[#9E2A3E]/60 text-white'
+                      : 'bg-[#1c2b27] border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Productos de la categoría seleccionada */}
+            <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+              <ul className="divide-y divide-[#223530]">
+                {PRODUCT_CATALOG[prodCategory].map((productName) => {
+                  const qty = quantities.get(productName) ?? 0;
+                  return (
+                    <li key={productName} className="px-4 py-3 flex items-center gap-3">
+                      <span className="flex-1 text-sm font-medium text-[#e6edea]">
+                        {productName}
+                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => changeQty(productName, -1)}
+                          disabled={qty === 0}
+                          className="w-9 h-9 rounded-xl bg-[#1c2b27] border border-[#223530] text-[#e6edea] font-bold text-lg flex items-center justify-center active:scale-[0.95] disabled:opacity-30 transition"
+                        >
+                          −
+                        </button>
+                        <span className={`w-7 text-center font-mono font-bold text-base ${qty > 0 ? 'text-[#E8899A]' : 'text-[#7d9990]'}`}>
+                          {qty > 0 ? qty : '—'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => changeQty(productName, 1)}
+                          className="w-9 h-9 rounded-xl bg-[#7A1D2E] border border-[#9E2A3E]/60 text-white font-bold text-lg flex items-center justify-center active:scale-[0.95] transition"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* Resumen selección */}
+            {totalItems > 0 && (
+              <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl px-4 py-3">
+                <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-2">
+                  Seleccion actual
+                </p>
+                <div className="space-y-1">
+                  {[...quantities.entries()].map(([name, qty]) => (
+                    <div key={name} className="flex justify-between text-xs">
+                      <span className="text-[#7d9990]">{name}</span>
+                      <span className="font-semibold text-[#e6edea]">×{qty}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 pt-2 border-t border-[#9E2A3E]/30 flex justify-between text-sm">
+                  <span className="font-bold text-[#e6edea]">Total piezas</span>
+                  <span className="font-mono font-bold text-[#E8899A]">{totalItems}</span>
+                </div>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSaveProductos}
+              disabled={prodSaving || !prodStaffId || quantities.size === 0}
+              className="w-full min-h-[52px] bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm disabled:opacity-40"
+            >
+              {prodSaving ? 'Guardando...' : 'Guardar productos del dia'}
+            </button>
+          </div>
+        )}
+
+        {/* ── Tab: Cierre de Caja ──────────────────────────────────────── */}
+        {activeTab === 'caja' && (
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
             {/* Mesero */}
             <div>
@@ -459,7 +606,7 @@ export default function VentasClient({
                 value={formStaffId}
                 onChange={(e) => setFormStaffId(e.target.value)}
                 required
-                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
               >
                 <option value="">Seleccionar...</option>
                 {staff.map((s) => (
@@ -484,7 +631,7 @@ export default function VentasClient({
                     className={`flex-1 min-h-[44px] rounded-xl font-semibold text-sm transition duration-150 ease-out active:scale-[0.98] select-none ${
                       formShift === s
                         ? s === 'Matutino'
-                          ? 'bg-amber-500 text-white shadow-sm'
+                          ? 'bg-[#7A1D2E] border border-[#9E2A3E]/60 text-white shadow-sm'
                           : 'bg-sky-600 text-white shadow-sm'
                         : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
                     }`}
@@ -501,14 +648,12 @@ export default function VentasClient({
                 Venta Total
               </label>
 
-              {/* Display del monto */}
               <div className="bg-[#0a0f0e] border border-[#223530] rounded-xl px-4 py-3 mb-3 text-center">
                 <span className="font-mono font-black text-3xl text-[#e6edea] tracking-tight">
                   ${formTotal || '0'}
                 </span>
               </div>
 
-              {/* Vista previa en vivo */}
               {liveCalc ? (
                 <div className="bg-[#1c2b27] border border-[#223530] rounded-xl px-4 py-3 mb-3 space-y-2">
                   <div className="flex justify-between text-xs">
@@ -525,7 +670,7 @@ export default function VentasClient({
                   </div>
                   <div className="flex justify-between text-sm border-t border-[#223530] pt-2">
                     <span className="font-bold text-[#e6edea]">Total a entregar</span>
-                    <span className="font-mono font-bold text-xl text-amber-500">
+                    <span className="font-mono font-bold text-xl text-[#E8899A]">
                       {fmtMXN(liveCalc.to_deliver)}
                     </span>
                   </div>
@@ -554,7 +699,6 @@ export default function VentasClient({
                 </div>
               )}
 
-              {/* Teclado numerico */}
               <div className="grid grid-cols-3 gap-2">
                 {KEYPAD_KEYS.map((key) => (
                   <KeypadButton
@@ -566,7 +710,6 @@ export default function VentasClient({
               </div>
             </div>
 
-            {/* Sancion (solo managers) */}
             {isManager && (
               <div>
                 <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
@@ -580,7 +723,7 @@ export default function VentasClient({
                   value={formSanctionPct}
                   onChange={(e) => setFormSanctionPct(e.target.value)}
                   placeholder="0 (opcional)"
-                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
                 />
                 <p className="text-[11px] text-[#7d9990] mt-1">
                   El 4.5% base siempre se entrega. El % adicional se registra aparte.
@@ -591,7 +734,7 @@ export default function VentasClient({
             <button
               type="submit"
               disabled={saving || !formStaffId || !formTotal}
-              className="w-full min-h-[52px] bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm disabled:opacity-40"
+              className="w-full min-h-[52px] bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm disabled:opacity-40"
             >
               {saving ? 'Guardando...' : 'Guardar venta'}
             </button>
@@ -607,8 +750,8 @@ export default function VentasClient({
               </div>
             ) : (
               <>
-                <div className="bg-amber-950/30 border border-amber-800/50 rounded-2xl p-4">
-                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">
+                <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-3">
                     Resumen del dia
                   </p>
                   <div className="grid grid-cols-2 gap-3 text-sm">
@@ -620,7 +763,7 @@ export default function VentasClient({
                     </div>
                     <div>
                       <p className="text-xs text-[#7d9990] mb-0.5">A entregar total</p>
-                      <p className="font-mono font-bold tracking-tight text-amber-500">
+                      <p className="font-mono font-bold tracking-tight text-[#E8899A]">
                         {fmtMXN(dayTotals.to_deliver)}
                       </p>
                     </div>
@@ -648,7 +791,7 @@ export default function VentasClient({
                 {todaySales.map((sale) => (
                   <div
                     key={sale.id}
-                    className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
+                    className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
@@ -658,7 +801,7 @@ export default function VentasClient({
                         <span
                           className={`mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
                             sale.shift === 'Matutino'
-                              ? 'bg-amber-950/60 border border-amber-700/50 text-amber-300'
+                              ? 'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]'
                               : 'bg-sky-950/60 border border-sky-700/50 text-sky-300'
                           }`}
                         >
@@ -696,7 +839,7 @@ export default function VentasClient({
                       </div>
                       <div className="flex justify-between">
                         <span className="font-bold text-[#e6edea]">A entregar</span>
-                        <span className="font-bold text-amber-500">
+                        <span className="font-bold text-[#E8899A]">
                           {fmtMXN(sale.to_deliver)}
                         </span>
                       </div>
@@ -732,7 +875,7 @@ export default function VentasClient({
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-amber-500 capitalize"
+              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E] capitalize"
             >
               {monthOptions.map((opt) => (
                 <option key={opt.value} value={opt.value} className="capitalize">
@@ -754,7 +897,7 @@ export default function VentasClient({
                 {[...monthSummary.byStaff.entries()].map(([staffId, agg]) => (
                   <div
                     key={staffId}
-                    className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
+                    className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
                   >
                     <div className="flex items-center justify-between mb-3">
                       <p className="font-bold text-[#e6edea] text-sm">{agg.name}</p>
@@ -783,14 +926,12 @@ export default function VentasClient({
                       </div>
                       <div className="flex justify-between">
                         <span className="font-bold text-[#e6edea]">A entregar</span>
-                        <span className="font-mono font-bold tracking-tight text-amber-500">
+                        <span className="font-mono font-bold tracking-tight text-[#E8899A]">
                           {fmtMXN(Math.round(agg.to_deliver * 100) / 100)}
                         </span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-[#7d9990] italic">
-                          Propina Cap.
-                        </span>
+                        <span className="text-[#7d9990] italic">Propina Cap.</span>
                         <span className="text-sky-400 font-semibold">
                           {fmtMXN(Math.round(agg.captain_tip * 100) / 100)}
                         </span>
@@ -807,8 +948,8 @@ export default function VentasClient({
                   </div>
                 ))}
 
-                <div className="bg-amber-950/30 border border-amber-800/50 rounded-2xl p-4">
-                  <p className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">
+                <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl p-4">
+                  <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-3">
                     Totales del mes &middot; {monthSales.length} registros
                   </p>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
@@ -832,7 +973,7 @@ export default function VentasClient({
                     </div>
                     <div className="flex justify-between">
                       <span className="font-bold text-[#e6edea]">A entregar</span>
-                      <span className="font-mono font-bold tracking-tight text-amber-500">
+                      <span className="font-mono font-bold tracking-tight text-[#E8899A]">
                         {fmtMXN(monthSummary.grandDeliver)}
                       </span>
                     </div>

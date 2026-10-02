@@ -116,3 +116,31 @@ export async function deleteSaleAction(id: string): Promise<void> {
 
   if (error) throw new Error(error.message);
 }
+
+// ── Productos del Día ──────────────────────────────────────────────────────────
+export interface ProductSaleInput {
+  sale_date: string;
+  staff_id: string;
+  items: { category: string; product_name: string; quantity: number }[];
+}
+
+export async function saveProductSalesAction(data: ProductSaleInput): Promise<void> {
+  const { user, isManager } = await verifyAuth();
+
+  if (!isManager && data.staff_id !== user.id) {
+    throw new Error('No autorizado: solo puedes registrar tus propios productos.');
+  }
+
+  const rows = data.items.map((item) => ({
+    sale_date: data.sale_date,
+    staff_id: data.staff_id,
+    category: item.category,
+    product_name: item.product_name,
+    quantity: item.quantity,
+  }));
+
+  const admin = createAdminClient();
+  const { error } = await admin.from('product_sales').insert(rows);
+
+  if (error) throw new Error(error.message);
+}

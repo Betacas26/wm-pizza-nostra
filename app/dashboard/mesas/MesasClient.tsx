@@ -198,7 +198,7 @@ export default function MesasClient({
       </div>
 
       {/* Grid de mesas */}
-      <section className="bg-[#141f1c] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+      <section className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
         <div className="px-4 py-3 border-b border-[#223530] flex items-center justify-between">
           <h2 className="font-bold text-[#e6edea] text-sm">
             {AREA_LABELS[activeArea]}

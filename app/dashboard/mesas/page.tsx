@@ -244,9 +244,9 @@ export default async function MesasPage() {
   const meseroData: MeseroData[] = meseros;
 
   return (
-    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
+    <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
+      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
           className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
@@ -255,7 +255,7 @@ export default async function MesasPage() {
           &#8592;
         </Link>
         <div>
-          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Asignacion de Mesas
           </h1>
           <p className="text-xs text-[#7d9990]">
@@ -275,7 +275,7 @@ export default async function MesasPage() {
         <form action={autoAssignAction}>
           <button
             type="submit"
-            className="w-full min-h-[44px] py-3.5 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm"
+            className="w-full min-h-[44px] py-3.5 bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm"
           >
             {hasSaved ? 'Regenerar asignacion' : 'Asignar automaticamente'}
           </button>

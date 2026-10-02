@@ -24,7 +24,7 @@ const DAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'] as const;
 const SHIFTS: Shift[] = ['Matutino', 'Vespertino', 'Descanso'];
 
 const SHIFT_STYLE: Record<Shift, string> = {
-  Matutino: 'bg-amber-950/60 border border-amber-700/50 text-amber-300',
+  Matutino: 'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]',
   Vespertino: 'bg-sky-950/60 border border-sky-700/50 text-sky-300',
   Descanso: 'bg-[#1c2b27] border border-[#223530] text-[#7d9990]',
 };
@@ -176,9 +176,9 @@ export default function HorariosClient({
                                'Copiar semana anterior';
 
   return (
-    <div className="min-h-screen bg-[#0d1412] text-[#e6edea]">
+    <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
-      <header className="bg-[#141f1c] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
+      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
           className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
@@ -187,7 +187,7 @@ export default function HorariosClient({
           &#8592;
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-amber-500 text-lg leading-tight">
+          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Horarios
           </h1>
           <p className="text-xs text-[#7d9990] truncate">
@@ -201,19 +201,19 @@ export default function HorariosClient({
         <div className="flex gap-2">
           <button
             onClick={() => setWeekStart((d) => addDays(d, -7))}
-            className="flex-1 min-h-[44px] bg-[#141f1c] border border-[#223530] rounded-xl font-semibold text-[#7d9990] hover:text-[#e6edea] hover:border-[#7d9990] text-sm transition duration-150 ease-out active:scale-[0.98] select-none"
+            className="flex-1 min-h-[44px] bg-[#151D1A] border border-[#223530] rounded-xl font-semibold text-[#7d9990] hover:text-[#e6edea] hover:border-[#7d9990] text-sm transition duration-150 ease-out active:scale-[0.98] select-none"
           >
             &larr; Anterior
           </button>
           <button
             onClick={() => setWeekStart(getWeekStart(new Date()))}
-            className="px-4 min-h-[44px] bg-[#141f1c] border border-amber-700/50 rounded-xl font-bold text-amber-400 hover:bg-amber-950/40 text-sm transition duration-150 ease-out active:scale-[0.98] select-none"
+            className="px-4 min-h-[44px] bg-[#151D1A] border border-[#9E2A3E]/60 rounded-xl font-bold text-[#E8899A] hover:bg-amber-950/40 text-sm transition duration-150 ease-out active:scale-[0.98] select-none"
           >
             Hoy
           </button>
           <button
             onClick={() => setWeekStart((d) => addDays(d, 7))}
-            className="flex-1 min-h-[44px] bg-[#141f1c] border border-[#223530] rounded-xl font-semibold text-[#7d9990] hover:text-[#e6edea] hover:border-[#7d9990] text-sm transition duration-150 ease-out active:scale-[0.98] select-none"
+            className="flex-1 min-h-[44px] bg-[#151D1A] border border-[#223530] rounded-xl font-semibold text-[#7d9990] hover:text-[#e6edea] hover:border-[#7d9990] text-sm transition duration-150 ease-out active:scale-[0.98] select-none"
           >
             Siguiente &rarr;
           </button>
@@ -252,16 +252,16 @@ export default function HorariosClient({
             Cargando horarios...
           </div>
         ) : staff.length === 0 ? (
-          <div className="bg-amber-950/30 border border-amber-800/50 rounded-xl p-4 text-sm text-amber-300">
+          <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-xl p-4 text-sm text-[#E8899A]">
             No hay colaboradores activos.
           </div>
         ) : (
-          <div className="bg-[#141f1c] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+          <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="border-b border-[#223530]">
-                    <th className="sticky left-0 z-10 bg-[#141f1c] px-3 py-2 text-left text-xs font-bold text-[#7d9990] min-w-[110px]">
+                    <th className="sticky left-0 z-10 bg-[#151D1A] px-3 py-2 text-left text-xs font-bold text-[#7d9990] min-w-[110px]">
                       Colaborador
                     </th>
                     {weekDays.map((date, i) => {
@@ -270,7 +270,7 @@ export default function HorariosClient({
                         <th
                           key={weekDayStrs[i]}
                           className={`px-1 py-2 text-center text-xs font-bold min-w-[38px] ${
-                            isToday ? 'text-amber-400' : 'text-[#7d9990]'
+                            isToday ? 'text-[#E8899A]' : 'text-[#7d9990]'
                           }`}
                         >
                           <span className="block">{DAYS_SHORT[i]}</span>
@@ -285,7 +285,7 @@ export default function HorariosClient({
                 <tbody className="divide-y divide-[#223530]">
                   {staff.map((member) => (
                     <tr key={member.id} className="hover:bg-[#1c2b27]/30">
-                      <td className="sticky left-0 z-10 bg-[#141f1c] px-3 py-2 min-w-[110px]">
+                      <td className="sticky left-0 z-10 bg-[#151D1A] px-3 py-2 min-w-[110px]">
                         <p className="font-semibold text-xs text-[#e6edea] leading-tight truncate">
                           {member.name.split(' ')[0]}
                         </p>

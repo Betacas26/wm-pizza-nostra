@@ -56,9 +56,8 @@ export default function ProductosClient({
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, active: !current } : p)),
     );
-    try {
-      await toggleProductAction(id, !current);
-    } catch {
+    const result = await toggleProductAction(id, !current);
+    if (!result.ok) {
       setProducts((prev) =>
         prev.map((p) => (p.id === id ? { ...p, active: current } : p)),
       );
@@ -68,11 +67,7 @@ export default function ProductosClient({
   async function handleDelete(id: string, name: string) {
     if (!window.confirm(`¿Eliminar "${name}"?`)) return;
     setProducts((prev) => prev.filter((p) => p.id !== id));
-    try {
-      await deleteProductAction(id);
-    } catch {
-      // silent — revalidatePath will re-sync on next load
-    }
+    await deleteProductAction(id);
   }
 
   async function handleCreate(e: React.FormEvent<HTMLFormElement>) {
@@ -80,14 +75,14 @@ export default function ProductosClient({
     if (!formName.trim()) return;
     setCreating(true);
     setCreateError(null);
-    try {
-      const created = await createProductAction(formName, formCategory);
-      setProducts((prev) => [...prev, created]);
+    const result = await createProductAction(formName, formCategory);
+    if (result.ok) {
+      setProducts((prev) => [...prev, result.data]);
       setFormName('');
       setFormCategory('General');
       setShowAdd(false);
-    } catch (err) {
-      setCreateError(err instanceof Error ? err.message : 'Error al crear producto.');
+    } else {
+      setCreateError(result.error);
     }
     setCreating(false);
   }

@@ -12,6 +12,10 @@ export interface ProductRecord {
   active: boolean;
 }
 
+export type ActionResult<T = void> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
+
 async function verifyManager() {
   const supabase = await createClient();
   const {
@@ -26,38 +30,68 @@ async function verifyManager() {
     .single();
 
   if (profile?.role !== 'admin' && profile?.role !== 'supervisor') {
-    throw new Error('No autorizado: se requiere rol admin o supervisor.');
+    return null;
   }
+  return true;
 }
 
 export async function createProductAction(
   name: string,
   category: string,
-): Promise<ProductRecord> {
-  await verifyManager();
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from('products')
-    .insert({ name: name.trim(), category: category.trim() || 'General' })
-    .select('id, name, category, active')
-    .single();
-  if (error || !data) throw new Error(error?.message ?? 'Error al crear producto');
-  revalidatePath('/dashboard/productos');
-  return data as ProductRecord;
+): Promise<ActionResult<ProductRecord>> {
+  try {
+    const ok = await verifyManager();
+    if (!ok) return { ok: false, error: 'No autorizado.' };
+
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('products')
+      .insert({ name: name.trim(), category: category.trim() || 'General' })
+      .select('id, name, category, active')
+      .single();
+
+    if (error || !data) return { ok: false, error: error?.message ?? 'Error al crear producto.' };
+
+    revalidatePath('/dashboard/productos');
+    return { ok: true, data: data as ProductRecord };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error desconocido.' };
+  }
 }
 
-export async function toggleProductAction(id: string, active: boolean): Promise<void> {
-  await verifyManager();
-  const admin = createAdminClient();
-  const { error } = await admin.from('products').update({ active }).eq('id', id);
-  if (error) throw new Error(error.message);
-  revalidatePath('/dashboard/productos');
+export async function toggleProductAction(
+  id: string,
+  active: boolean,
+): Promise<ActionResult> {
+  try {
+    const ok = await verifyManager();
+    if (!ok) return { ok: false, error: 'No autorizado.' };
+
+    const admin = createAdminClient();
+    const { error } = await admin.from('products').update({ active }).eq('id', id);
+
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath('/dashboard/productos');
+    return { ok: true, data: undefined };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error desconocido.' };
+  }
 }
 
-export async function deleteProductAction(id: string): Promise<void> {
-  await verifyManager();
-  const admin = createAdminClient();
-  const { error } = await admin.from('products').delete().eq('id', id);
-  if (error) throw new Error(error.message);
-  revalidatePath('/dashboard/productos');
+export async function deleteProductAction(id: string): Promise<ActionResult> {
+  try {
+    const ok = await verifyManager();
+    if (!ok) return { ok: false, error: 'No autorizado.' };
+
+    const admin = createAdminClient();
+    const { error } = await admin.from('products').delete().eq('id', id);
+
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath('/dashboard/productos');
+    return { ok: true, data: undefined };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Error desconocido.' };
+  }
 }

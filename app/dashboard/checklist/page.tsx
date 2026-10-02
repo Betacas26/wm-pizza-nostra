@@ -58,8 +58,8 @@ export default async function ChecklistPage() {
       .order('completed_at', { ascending: false }),
     supabase
       .from('checklist_items')
-      .select('id, area, type, key, label, sort_order')
-      .order('sort_order'),
+      .select('id, item_text, position, checklist_templates!inner(area, type)')
+      .order('position'),
   ]);
 
   const staff: StaffMember[] = (profilesData ?? []).map(
@@ -111,7 +111,17 @@ export default async function ChecklistPage() {
     }));
 
   const checklistItems: ChecklistItemRecord[] = (itemsData ?? []).map(
-    (i: { id: string; area: string; type: string; key: string; label: string; sort_order: number }) => i,
+    (i: { id: string; item_text: string; position: number; checklist_templates: { area: string; type: string } | { area: string; type: string }[] }) => {
+      const tmpl = Array.isArray(i.checklist_templates) ? i.checklist_templates[0] : i.checklist_templates;
+      return {
+        id: i.id,
+        area: tmpl.area,
+        type: tmpl.type,
+        key: i.id,
+        label: i.item_text,
+        sort_order: i.position,
+      };
+    },
   );
 
   return (

@@ -165,14 +165,55 @@ export async function createChecklistItemAction(data: {
 }): Promise<ChecklistItemRecord> {
   await verifyManager();
   const admin = createAdminClient();
-  const key = `${data.area.toLowerCase()}_${data.type.slice(0, 2)}_${Date.now()}`;
+
+  // Find or create template for this area+type
+  let templateId: string;
+  const { data: existing } = await admin
+    .from('checklist_templates')
+    .select('id')
+    .eq('area', data.area)
+    .eq('type', data.type)
+    .maybeSingle();
+
+  if (existing) {
+    templateId = (existing as { id: string }).id;
+  } else {
+    const { data: newTemplate, error: tmplErr } = await admin
+      .from('checklist_templates')
+      .insert({ area: data.area, type: data.type })
+      .select('id')
+      .single();
+    if (tmplErr || !newTemplate) throw new Error(tmplErr?.message ?? 'Error al crear plantilla.');
+    templateId = (newTemplate as { id: string }).id;
+  }
+
+  // Get max position for this template
+  const { data: maxRow } = await admin
+    .from('checklist_items')
+    .select('position')
+    .eq('template_id', templateId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const nextPosition = ((maxRow as { position: number } | null)?.position ?? 0) + 1;
+
   const { data: row, error } = await admin
     .from('checklist_items')
-    .insert({ area: data.area, type: data.type, key, label: data.label, sort_order: 99 })
-    .select()
+    .insert({ template_id: templateId, section_title: '', item_text: data.label, position: nextPosition })
+    .select('id, item_text, position, checklist_templates!inner(area, type)')
     .single();
   if (error || !row) throw new Error(error?.message ?? 'Error al crear item.');
-  return row as ChecklistItemRecord;
+
+  const r = row as { id: string; item_text: string; position: number; checklist_templates: { area: string; type: string } | { area: string; type: string }[] };
+  const tmpl = Array.isArray(r.checklist_templates) ? r.checklist_templates[0] : r.checklist_templates;
+  return {
+    id: r.id,
+    area: tmpl.area,
+    type: tmpl.type,
+    key: r.id,
+    label: r.item_text,
+    sort_order: r.position,
+  };
 }
 
 export async function updateChecklistItemAction(data: {
@@ -181,7 +222,7 @@ export async function updateChecklistItemAction(data: {
 }): Promise<void> {
   await verifyManager();
   const admin = createAdminClient();
-  const { error } = await admin.from('checklist_items').update({ label: data.label }).eq('id', data.id);
+  const { error } = await admin.from('checklist_items').update({ item_text: data.label }).eq('id', data.id);
   if (error) throw new Error(error.message);
 }
 

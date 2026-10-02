@@ -24,6 +24,8 @@ interface SaleDbRow {
   glassware: number | null;
   captain_tip: number | null;
   to_deliver: number | null;
+  sanction_pct: number | null;
+  sanction_amount: number | null;
 }
 
 export default async function VentasPage() {
@@ -47,7 +49,7 @@ export default async function VentasPage() {
       supabase
         .from('sales')
         .select(
-          'id, sale_date, shift, staff_id, total, contribution, glassware, captain_tip, to_deliver',
+          'id, sale_date, shift, staff_id, total, contribution, glassware, captain_tip, to_deliver, sanction_pct, sanction_amount',
         )
         .eq('sale_date', today)
         .order('id', { ascending: false }),
@@ -80,6 +82,8 @@ export default async function VentasPage() {
       glassware: Number(s.glassware) || 0,
       captain_tip: Number(s.captain_tip) || 0,
       to_deliver: Number(s.to_deliver) || 0,
+      sanction_pct: Number(s.sanction_pct) || 0,
+      sanction_amount: Number(s.sanction_amount) || 0,
     }),
   );
 

@@ -9,12 +9,15 @@ const APORTE_PCT = 4.5;
 const CRISTALERIA = 10.0;
 const CAPITAN_PCT = 0.8;
 
-function calcular(rawTotal: number) {
+function calcular(rawTotal: number, rawSanctionPct = 0) {
   const total = isFinite(rawTotal) && rawTotal > 0 ? rawTotal : 0;
+  const sanctionPct = isFinite(rawSanctionPct) && rawSanctionPct > 0 ? rawSanctionPct : 0;
   const contribution = Math.round(total * APORTE_PCT) / 100;
   const captain_tip = Math.round(total * CAPITAN_PCT) / 100;
   const to_deliver = Math.round((contribution + CRISTALERIA) * 100) / 100;
-  return { total, contribution, glassware: CRISTALERIA, captain_tip, to_deliver };
+  // La sanción es un % adicional que se separa como bono — NO se suma a to_deliver
+  const sanction_amount = Math.round(total * sanctionPct) / 100;
+  return { total, contribution, glassware: CRISTALERIA, captain_tip, to_deliver, sanction_pct: sanctionPct, sanction_amount };
 }
 
 export interface SaleInput {
@@ -22,6 +25,7 @@ export interface SaleInput {
   shift: 'Matutino' | 'Vespertino';
   staff_id: string;
   total: number;
+  sanction_pct?: number; // % adicional como bono/sanción (solo managers)
 }
 
 export interface SaleRow {
@@ -34,6 +38,8 @@ export interface SaleRow {
   glassware: number | null;
   captain_tip: number | null;
   to_deliver: number | null;
+  sanction_pct: number | null;
+  sanction_amount: number | null;
 }
 
 // ── Auth guard ────────────────────────────────────────────────────────────────
@@ -67,7 +73,9 @@ export async function submitSaleAction(data: SaleInput): Promise<SaleRow> {
   }
 
   // Recalcular server-side — el cliente no dicta valores financieros
-  const calc = calcular(data.total);
+  // Meseros nunca pueden aplicar sanción; solo managers
+  const sanctionPct = isManager ? (data.sanction_pct ?? 0) : 0;
+  const calc = calcular(data.total, sanctionPct);
 
   const admin = createAdminClient();
   const { data: inserted, error } = await admin
@@ -83,6 +91,8 @@ export async function submitSaleAction(data: SaleInput): Promise<SaleRow> {
       contribution: calc.contribution,
       captain_tip: calc.captain_tip,
       to_deliver: calc.to_deliver,
+      sanction_pct: calc.sanction_pct,
+      sanction_amount: calc.sanction_amount,
     })
     .select()
     .single();

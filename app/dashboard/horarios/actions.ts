@@ -34,6 +34,17 @@ async function verifyManager() {
 }
 
 // ── Server Actions ─────────────────────────────────────────────────────────────
+export async function deleteShiftAction(staffId: string, day: string): Promise<void> {
+  await verifyManager();
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('schedules')
+    .delete()
+    .eq('staff_id', staffId)
+    .eq('day', day);
+  if (error) throw new Error(error.message);
+}
+
 export async function saveShiftAction(
   staffId: string,
   day: string,

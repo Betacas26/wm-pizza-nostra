@@ -25,6 +25,8 @@ export interface SaleRecord {
   glassware: number;
   captain_tip: number;
   to_deliver: number;
+  sanction_pct: number;
+  sanction_amount: number;
 }
 
 export interface VentasClientProps {
@@ -34,31 +36,19 @@ export interface VentasClientProps {
   today: string;
 }
 
-// ── Constantes (logic.md) ─────────────────────────────────────────────────
+// ── Constantes ─────────────────────────────────────────────────────────────
 const APORTE_PCT = 4.5;
 const CRISTALERIA = 10.0;
 const CAPITAN_PCT = 0.8;
 
-/**
- * Calcula los valores derivados de una venta total.
- * Determinista: redondea a 2 decimales, nunca produce NaN ni valores negativos.
- * @param rawTotal - Importe bruto de la venta
- */
-function calcular(rawTotal: number): {
-  total: number;
-  contribution: number;
-  glassware: number;
-  captain_tip: number;
-  to_deliver: number;
-} {
+function calcular(rawTotal: number, rawSanctionPct = 0) {
   const total = isFinite(rawTotal) && rawTotal > 0 ? rawTotal : 0;
-  // Aporte = total × 4.5%  →  Math.round(total × 4.5) / 100
+  const sanctionPct = isFinite(rawSanctionPct) && rawSanctionPct > 0 ? rawSanctionPct : 0;
   const contribution = Math.round(total * APORTE_PCT) / 100;
-  // Propina Capitán = total × 0.8%  (solo informativo)
   const captain_tip = Math.round(total * CAPITAN_PCT) / 100;
-  // Total a entregar = Aporte + Cristalería (cristalería NO incluye propina)
   const to_deliver = Math.round((contribution + CRISTALERIA) * 100) / 100;
-  return { total, contribution, glassware: CRISTALERIA, captain_tip, to_deliver };
+  const sanction_amount = Math.round(total * sanctionPct) / 100;
+  return { total, contribution, glassware: CRISTALERIA, captain_tip, to_deliver, sanction_amount };
 }
 
 function fmtMXN(n: number): string {
@@ -68,30 +58,19 @@ function fmtMXN(n: number): string {
   })}`;
 }
 
-/**
- * Genera y descarga un archivo CSV con el detalle de ventas del mes.
- * Incluye BOM UTF-8 para compatibilidad con Excel.
- */
 function exportarCSV(records: SaleRecord[], monthLabel: string) {
   const headers = [
-    'Fecha',
-    'Turno',
-    'Mesero',
-    'Venta Total',
-    'Aporte (4.5%)',
-    'Cristaleria',
-    'Total a Entregar',
-    'Propina Capitan (info)',
+    'Fecha', 'Turno', 'Mesero', 'Venta Total',
+    'Aporte (4.5%)', 'Cristaleria', 'Total a Entregar',
+    'Propina Capitan', 'Sancion %', 'Bono Sancion',
   ];
   const rows = records.map((r) => [
-    r.sale_date,
-    r.shift,
+    r.sale_date, r.shift,
     `"${r.staff_name.replace(/"/g, '""')}"`,
-    r.total.toFixed(2),
-    r.contribution.toFixed(2),
-    r.glassware.toFixed(2),
-    r.to_deliver.toFixed(2),
+    r.total.toFixed(2), r.contribution.toFixed(2),
+    r.glassware.toFixed(2), r.to_deliver.toFixed(2),
     r.captain_tip.toFixed(2),
+    r.sanction_pct.toFixed(2), r.sanction_amount.toFixed(2),
   ]);
   const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -120,14 +99,16 @@ export default function VentasClient({
   const [formStaffId, setFormStaffId] = useState(staff[0]?.id ?? '');
   const [formShift, setFormShift] = useState<SaleShift>('Matutino');
   const [formTotal, setFormTotal] = useState('');
+  const [formSanctionPct, setFormSanctionPct] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
 
-  // Cálculo en vivo sin efectos secundarios
   const liveCalc = useMemo(() => {
     const n = parseFloat(formTotal);
-    return isFinite(n) && n > 0 ? calcular(n) : null;
-  }, [formTotal]);
+    if (!isFinite(n) || n <= 0) return null;
+    const s = parseFloat(formSanctionPct) || 0;
+    return calcular(n, s);
+  }, [formTotal, formSanctionPct]);
 
   // ── Ventas del día ─────────────────────────────────────────────────────
   const [todaySales, setTodaySales] = useState<SaleRecord[]>(initialSales);
@@ -155,11 +136,6 @@ export default function VentasClient({
     return opts;
   }, []);
 
-  // ── Carga de datos mensuales ───────────────────────────────────────────
-  /**
-   * Obtiene todas las ventas del mes `ym` (formato "YYYY-MM") y resuelve
-   * los nombres de los meseros en una segunda consulta.
-   */
   const loadMonthSales = useCallback(
     async (ym: string) => {
       setMonthLoading(true);
@@ -173,7 +149,7 @@ export default function VentasClient({
       const { data: salesData } = await supabase
         .from('sales')
         .select(
-          'id, sale_date, shift, staff_id, total, contribution, glassware, captain_tip, to_deliver',
+          'id, sale_date, shift, staff_id, total, contribution, glassware, captain_tip, to_deliver, sanction_pct, sanction_amount',
         )
         .gte('sale_date', firstDay)
         .lte('sale_date', lastDay)
@@ -185,37 +161,24 @@ export default function VentasClient({
         return;
       }
 
-      // Resolver nombres: consulta puntual solo para los staff_id presentes
-      const staffIds = [
-        ...new Set(
-          (salesData as { staff_id: string }[]).map((s) => s.staff_id),
-        ),
-      ];
+      const staffIds = [...new Set((salesData as { staff_id: string }[]).map((s) => s.staff_id))];
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('id, name')
         .in('id', staffIds);
 
       const nameMap = new Map<string, string>(
-        (profilesData ?? []).map(
-          (p: { id: string; name: string | null }) => [
-            p.id,
-            p.name ?? '(sin nombre)',
-          ],
-        ),
+        (profilesData ?? []).map((p: { id: string; name: string | null }) => [
+          p.id, p.name ?? '(sin nombre)',
+        ]),
       );
 
       const records: SaleRecord[] = (
         salesData as {
-          id: string;
-          sale_date: string;
-          shift: string;
-          staff_id: string;
-          total: number | null;
-          contribution: number | null;
-          glassware: number | null;
-          captain_tip: number | null;
-          to_deliver: number | null;
+          id: string; sale_date: string; shift: string; staff_id: string;
+          total: number | null; contribution: number | null; glassware: number | null;
+          captain_tip: number | null; to_deliver: number | null;
+          sanction_pct: number | null; sanction_amount: number | null;
         }[]
       ).map((s) => ({
         id: s.id,
@@ -228,6 +191,8 @@ export default function VentasClient({
         glassware: Number(s.glassware) || 0,
         captain_tip: Number(s.captain_tip) || 0,
         to_deliver: Number(s.to_deliver) || 0,
+        sanction_pct: Number(s.sanction_pct) || 0,
+        sanction_amount: Number(s.sanction_amount) || 0,
       }));
 
       setMonthSales(records);
@@ -242,15 +207,11 @@ export default function VentasClient({
     }
   }, [activeTab, selectedMonth, loadMonthSales]);
 
-  // ── Agregado mensual (solo vista, no persiste) ─────────────────────────
+  // ── Agregado mensual ───────────────────────────────────────────────────
   const monthSummary = useMemo(() => {
     type StaffAgg = {
-      name: string;
-      count: number;
-      total: number;
-      contribution: number;
-      glassware: number;
-      to_deliver: number;
+      name: string; count: number; total: number; contribution: number;
+      glassware: number; to_deliver: number; captain_tip: number; sanction_amount: number;
     };
     const byStaff = new Map<string, StaffAgg>();
 
@@ -262,37 +223,45 @@ export default function VentasClient({
         existing.contribution += s.contribution;
         existing.glassware += s.glassware;
         existing.to_deliver += s.to_deliver;
+        existing.captain_tip += s.captain_tip;
+        existing.sanction_amount += s.sanction_amount;
       } else {
         byStaff.set(s.staff_id, {
-          name: s.staff_name,
-          count: 1,
-          total: s.total,
-          contribution: s.contribution,
-          glassware: s.glassware,
-          to_deliver: s.to_deliver,
+          name: s.staff_name, count: 1,
+          total: s.total, contribution: s.contribution,
+          glassware: s.glassware, to_deliver: s.to_deliver,
+          captain_tip: s.captain_tip, sanction_amount: s.sanction_amount,
         });
       }
     }
 
-    let grandTotal = 0;
-    let grandContrib = 0;
-    let grandGlass = 0;
-    let grandDeliver = 0;
+    let grandTotal = 0, grandContrib = 0, grandGlass = 0, grandDeliver = 0,
+        grandCaptain = 0, grandSanction = 0;
     for (const v of byStaff.values()) {
-      grandTotal += v.total;
-      grandContrib += v.contribution;
-      grandGlass += v.glassware;
-      grandDeliver += v.to_deliver;
+      grandTotal += v.total; grandContrib += v.contribution;
+      grandGlass += v.glassware; grandDeliver += v.to_deliver;
+      grandCaptain += v.captain_tip; grandSanction += v.sanction_amount;
     }
 
+    const r = (n: number) => Math.round(n * 100) / 100;
     return {
       byStaff,
-      grandTotal: Math.round(grandTotal * 100) / 100,
-      grandContrib: Math.round(grandContrib * 100) / 100,
-      grandGlass: Math.round(grandGlass * 100) / 100,
-      grandDeliver: Math.round(grandDeliver * 100) / 100,
+      grandTotal: r(grandTotal), grandContrib: r(grandContrib),
+      grandGlass: r(grandGlass), grandDeliver: r(grandDeliver),
+      grandCaptain: r(grandCaptain), grandSanction: r(grandSanction),
     };
   }, [monthSales]);
+
+  // ── Totales del día ────────────────────────────────────────────────────
+  const dayTotals = useMemo(() => {
+    const r = (n: number) => Math.round(n * 100) / 100;
+    return {
+      total: r(todaySales.reduce((a, s) => a + s.total, 0)),
+      to_deliver: r(todaySales.reduce((a, s) => a + s.to_deliver, 0)),
+      captain_tip: r(todaySales.reduce((a, s) => a + s.captain_tip, 0)),
+      sanction_amount: r(todaySales.reduce((a, s) => a + s.sanction_amount, 0)),
+    };
+  }, [todaySales]);
 
   // ── Guardar venta ──────────────────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -302,14 +271,13 @@ export default function VentasClient({
     if (!isFinite(rawTotal) || rawTotal <= 0) return;
 
     setSaving(true);
-    const calc = calcular(rawTotal);
-
     try {
       const inserted = await submitSaleAction({
         sale_date: today,
         shift: formShift,
         staff_id: formStaffId,
-        total: calc.total,
+        total: rawTotal,
+        sanction_pct: parseFloat(formSanctionPct) || 0,
       });
 
       const record: SaleRecord = {
@@ -323,27 +291,30 @@ export default function VentasClient({
         glassware: Number(inserted.glassware) || 0,
         captain_tip: Number(inserted.captain_tip) || 0,
         to_deliver: Number(inserted.to_deliver) || 0,
+        sanction_pct: Number(inserted.sanction_pct) || 0,
+        sanction_amount: Number(inserted.sanction_amount) || 0,
       };
       setTodaySales((prev) => [record, ...prev]);
       setFormTotal('');
+      setFormSanctionPct('');
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2500);
       setActiveTab('hoy');
     } catch {
-      // Error silenciado — la validación ocurre en el servidor
+      // silent
     }
 
     setSaving(false);
   }
 
-  // ── Eliminar venta (solo managers) ────────────────────────────────────
+  // ── Eliminar venta ─────────────────────────────────────────────────────
   async function handleDelete(id: string) {
     if (!window.confirm('¿Eliminar esta venta?')) return;
     try {
       await deleteSaleAction(id);
       setTodaySales((prev) => prev.filter((s) => s.id !== id));
     } catch {
-      // Error silenciado — el servidor rechaza si no hay permiso
+      // silent
     }
   }
 
@@ -409,9 +380,7 @@ export default function VentasClient({
               >
                 <option value="">Seleccionar...</option>
                 {staff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
+                  <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
             </div>
@@ -458,40 +427,60 @@ export default function VentasClient({
               />
             </div>
 
-            {/* Vista previa del cálculo */}
+            {/* Sanción (solo managers) */}
+            {isManager && (
+              <div>
+                <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1.5">
+                  Sanción adicional (%) — se separa como bono
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  value={formSanctionPct}
+                  onChange={(e) => setFormSanctionPct(e.target.value)}
+                  placeholder="0 (opcional)"
+                  className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base"
+                />
+                <p className="text-[11px] text-stone-400 mt-1">
+                  El 4.5% base siempre se entrega. El % adicional se registra aparte como bono retenido.
+                </p>
+              </div>
+            )}
+
+            {/* Vista previa */}
             {liveCalc ? (
               <div className="bg-stone-50 border border-stone-200 rounded-2xl p-4 space-y-2.5">
                 <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                   Vista previa del cierre
                 </p>
                 <div className="flex justify-between text-sm">
-                  <span className="text-stone-600">
-                    Aporte ({APORTE_PCT}%)
-                  </span>
-                  <span className="font-semibold text-stone-800">
-                    {fmtMXN(liveCalc.contribution)}
-                  </span>
+                  <span className="text-stone-600">Aporte ({APORTE_PCT}%)</span>
+                  <span className="font-semibold text-stone-800">{fmtMXN(liveCalc.contribution)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-stone-600">Cristaleria (fijo)</span>
-                  <span className="font-semibold text-stone-800">
-                    {fmtMXN(liveCalc.glassware)}
-                  </span>
+                  <span className="font-semibold text-stone-800">{fmtMXN(liveCalc.glassware)}</span>
                 </div>
                 <div className="flex justify-between text-sm border-t border-stone-200 pt-2.5">
                   <span className="font-bold text-stone-900">Total a entregar</span>
-                  <span className="font-bold text-xl text-amber-600">
-                    {fmtMXN(liveCalc.to_deliver)}
-                  </span>
+                  <span className="font-bold text-xl text-amber-600">{fmtMXN(liveCalc.to_deliver)}</span>
                 </div>
                 <div className="flex justify-between text-xs pt-0.5">
                   <span className="text-stone-400 italic">
-                    Propina Capitan ({CAPITAN_PCT}% — informativo)
+                    Propina Capitan ({CAPITAN_PCT}% — info)
                   </span>
-                  <span className="text-stone-400 italic">
-                    {fmtMXN(liveCalc.captain_tip)}
-                  </span>
+                  <span className="text-stone-400 italic">{fmtMXN(liveCalc.captain_tip)}</span>
                 </div>
+                {liveCalc.sanction_amount > 0 && (
+                  <div className="flex justify-between text-xs bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mt-1">
+                    <span className="text-orange-700 font-semibold">
+                      Bono sanción ({parseFloat(formSanctionPct).toFixed(1)}%) — retenido
+                    </span>
+                    <span className="text-orange-700 font-bold">{fmtMXN(liveCalc.sanction_amount)}</span>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-stone-50 border border-dashed border-stone-200 rounded-2xl p-5 text-center text-sm text-stone-400">
@@ -523,27 +512,25 @@ export default function VentasClient({
                   <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3">
                     Resumen del dia
                   </p>
-                  <div className="flex gap-5 flex-wrap text-sm">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-xs text-stone-500 mb-0.5">Total ventas</p>
-                      <p className="font-bold text-stone-900">
-                        {fmtMXN(
-                          Math.round(
-                            todaySales.reduce((a, s) => a + s.total, 0) * 100,
-                          ) / 100,
-                        )}
-                      </p>
+                      <p className="font-bold text-stone-900">{fmtMXN(dayTotals.total)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-stone-500 mb-0.5">A entregar total</p>
-                      <p className="font-bold text-amber-600">
-                        {fmtMXN(
-                          Math.round(
-                            todaySales.reduce((a, s) => a + s.to_deliver, 0) * 100,
-                          ) / 100,
-                        )}
-                      </p>
+                      <p className="font-bold text-amber-600">{fmtMXN(dayTotals.to_deliver)}</p>
                     </div>
+                    <div>
+                      <p className="text-xs text-stone-500 mb-0.5">Propina Capitán</p>
+                      <p className="font-bold text-sky-700">{fmtMXN(dayTotals.captain_tip)}</p>
+                    </div>
+                    {dayTotals.sanction_amount > 0 && (
+                      <div>
+                        <p className="text-xs text-stone-500 mb-0.5">Bonos retenidos</p>
+                        <p className="font-bold text-orange-600">{fmtMXN(dayTotals.sanction_amount)}</p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs text-stone-500 mb-0.5">Registros</p>
                       <p className="font-bold text-stone-900">{todaySales.length}</p>
@@ -559,9 +546,7 @@ export default function VentasClient({
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
-                        <p className="font-bold text-stone-900 text-sm">
-                          {sale.staff_name}
-                        </p>
+                        <p className="font-bold text-stone-900 text-sm">{sale.staff_name}</p>
                         <span
                           className={`mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
                             sale.shift === 'Matutino'
@@ -597,18 +582,20 @@ export default function VentasClient({
                       </div>
                       <div className="flex justify-between">
                         <span className="font-bold text-stone-900">A entregar</span>
-                        <span className="font-bold text-amber-600">
-                          {fmtMXN(sale.to_deliver)}
-                        </span>
+                        <span className="font-bold text-amber-600">{fmtMXN(sale.to_deliver)}</span>
                       </div>
                       <div className="flex justify-between col-span-2 pt-1.5 mt-0.5 border-t border-stone-100">
-                        <span className="text-stone-400 italic">
-                          Propina Cap. (info)
-                        </span>
-                        <span className="text-stone-400 italic">
-                          {fmtMXN(sale.captain_tip)}
-                        </span>
+                        <span className="text-stone-400 italic">Propina Cap. (info)</span>
+                        <span className="text-stone-400 italic">{fmtMXN(sale.captain_tip)}</span>
                       </div>
+                      {sale.sanction_amount > 0 && (
+                        <div className="flex justify-between col-span-2 text-orange-600">
+                          <span className="font-semibold">
+                            Bono sanción ({sale.sanction_pct}%)
+                          </span>
+                          <span className="font-bold">{fmtMXN(sale.sanction_amount)}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -620,7 +607,6 @@ export default function VentasClient({
         {/* ── Tab: Mes ─────────────────────────────────────────────────── */}
         {activeTab === 'mes' && (
           <div className="space-y-4 pt-1">
-            {/* Selector de mes */}
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
@@ -634,16 +620,13 @@ export default function VentasClient({
             </select>
 
             {monthLoading ? (
-              <div className="text-center py-14 text-stone-400 text-sm">
-                Cargando...
-              </div>
+              <div className="text-center py-14 text-stone-400 text-sm">Cargando...</div>
             ) : monthSales.length === 0 ? (
               <div className="text-center py-14 text-stone-400 text-sm">
                 Sin ventas en este mes.
               </div>
             ) : (
               <>
-                {/* Tarjetas por mesero */}
                 {[...monthSummary.byStaff.entries()].map(([staffId, agg]) => (
                   <div
                     key={staffId}
@@ -658,28 +641,30 @@ export default function VentasClient({
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
                       <div className="flex justify-between">
                         <span className="text-stone-500">Total ventas</span>
-                        <span className="font-semibold">
-                          {fmtMXN(Math.round(agg.total * 100) / 100)}
-                        </span>
+                        <span className="font-semibold">{fmtMXN(Math.round(agg.total * 100) / 100)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-stone-500">Aporte</span>
-                        <span className="font-semibold">
-                          {fmtMXN(Math.round(agg.contribution * 100) / 100)}
-                        </span>
+                        <span className="font-semibold">{fmtMXN(Math.round(agg.contribution * 100) / 100)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-stone-500">Cristaleria</span>
-                        <span className="font-semibold">
-                          {fmtMXN(Math.round(agg.glassware * 100) / 100)}
-                        </span>
+                        <span className="font-semibold">{fmtMXN(Math.round(agg.glassware * 100) / 100)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="font-bold text-stone-900">A entregar</span>
-                        <span className="font-bold text-amber-600">
-                          {fmtMXN(Math.round(agg.to_deliver * 100) / 100)}
-                        </span>
+                        <span className="font-bold text-amber-600">{fmtMXN(Math.round(agg.to_deliver * 100) / 100)}</span>
                       </div>
+                      <div className="flex justify-between">
+                        <span className="text-stone-400 italic">Propina Cap.</span>
+                        <span className="text-sky-600 font-semibold">{fmtMXN(Math.round(agg.captain_tip * 100) / 100)}</span>
+                      </div>
+                      {agg.sanction_amount > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-orange-600">Bonos retenidos</span>
+                          <span className="text-orange-600 font-semibold">{fmtMXN(Math.round(agg.sanction_amount * 100) / 100)}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -692,32 +677,33 @@ export default function VentasClient({
                   <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-stone-600">Total ventas</span>
-                      <span className="font-semibold">
-                        {fmtMXN(monthSummary.grandTotal)}
-                      </span>
+                      <span className="font-semibold">{fmtMXN(monthSummary.grandTotal)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-stone-600">Aporte</span>
-                      <span className="font-semibold">
-                        {fmtMXN(monthSummary.grandContrib)}
-                      </span>
+                      <span className="font-semibold">{fmtMXN(monthSummary.grandContrib)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-stone-600">Cristaleria</span>
-                      <span className="font-semibold">
-                        {fmtMXN(monthSummary.grandGlass)}
-                      </span>
+                      <span className="font-semibold">{fmtMXN(monthSummary.grandGlass)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="font-bold text-stone-900">A entregar</span>
-                      <span className="font-bold text-amber-600">
-                        {fmtMXN(monthSummary.grandDeliver)}
-                      </span>
+                      <span className="font-bold text-amber-600">{fmtMXN(monthSummary.grandDeliver)}</span>
                     </div>
+                    <div className="flex justify-between">
+                      <span className="text-stone-600">Propina Capitán</span>
+                      <span className="font-semibold text-sky-700">{fmtMXN(monthSummary.grandCaptain)}</span>
+                    </div>
+                    {monthSummary.grandSanction > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-orange-600">Bonos retenidos</span>
+                        <span className="font-bold text-orange-600">{fmtMXN(monthSummary.grandSanction)}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Exportar CSV */}
                 <button
                   onClick={() => exportarCSV(monthSales, selectedMonth)}
                   className="w-full min-h-[44px] bg-stone-700 hover:bg-stone-800 active:bg-stone-900 text-white font-bold rounded-xl shadow transition text-sm"

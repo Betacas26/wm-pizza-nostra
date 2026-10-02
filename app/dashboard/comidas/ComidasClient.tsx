@@ -6,7 +6,6 @@ import { startMealBreakAction, endMealBreakAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 type BreakStatus = 'active' | 'completed' | 'overdue';
-type TimerState = 'normal' | 'warning' | 'overdue';
 
 export interface StaffMember {
   id: string;
@@ -31,118 +30,67 @@ export interface ComidasClientProps {
   today: string;
 }
 
-// ── Constantes (logic.md) ──────────────────────────────────────────────────
-/** Duración exacta de la comida en segundos. */
+// ── Constantes ─────────────────────────────────────────────────────────────
 const DURATION_S = 30 * 60;
-/** Umbral de alerta: quedan 5 minutos o menos. */
 const WARNING_S = 5 * 60;
 
-// ── Utilidades de temporizador ─────────────────────────────────────────────
-/**
- * Calcula el tiempo restante y el estado de alerta a partir de `started_at`.
- * Determinista: nunca produce NaN ni desbordamientos.
- * @param startedAt - ISO timestamp de inicio
- * @param nowMs     - timestamp actual en milisegundos
- */
-function getTimerInfo(
-  startedAt: string,
-  nowMs: number,
-): { remaining: number; progressPct: number; state: TimerState } {
-  const elapsed = Math.floor((nowMs - new Date(startedAt).getTime()) / 1000);
-  const remaining = DURATION_S - elapsed;
-  const progressPct = Math.min(100, Math.max(0, (elapsed / DURATION_S) * 100));
-  const state: TimerState =
-    remaining <= 0 ? 'overdue' : remaining <= WARNING_S ? 'warning' : 'normal';
-  return { remaining, progressPct, state };
+// ── Utilidades ─────────────────────────────────────────────────────────────
+function getRemaining(startedAt: string, nowMs: number): number {
+  return DURATION_S - Math.floor((nowMs - new Date(startedAt).getTime()) / 1000);
 }
 
-/**
- * Formatea segundos en MM:SS. Negativo indica tiempo excedido.
- */
-function fmtTimer(seconds: number): string {
-  const abs = Math.abs(seconds);
+function fmtTimer(s: number): string {
+  const abs = Math.abs(s);
   const m = Math.floor(abs / 60).toString().padStart(2, '0');
-  const s = (abs % 60).toString().padStart(2, '0');
-  return seconds >= 0 ? `${m}:${s}` : `-${m}:${s}`;
+  const sec = (abs % 60).toString().padStart(2, '0');
+  return s >= 0 ? `${m}:${sec}` : `-${m}:${sec}`;
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString('es-MX', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return new Date(iso).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Variantes de estilo por estado ─────────────────────────────────────────
-const CARD_BG: Record<TimerState, string> = {
-  normal:  'bg-white border-stone-200',
-  warning: 'bg-amber-50 border-amber-300',
-  overdue: 'bg-red-50 border-red-300',
-};
-
-const TIMER_COLOR: Record<TimerState, string> = {
-  normal:  'text-stone-700',
-  warning: 'text-amber-600',
-  overdue: 'text-red-600',
-};
-
-const PROGRESS_COLOR: Record<TimerState, string> = {
-  normal:  'bg-emerald-500',
-  warning: 'bg-amber-500',
-  overdue: 'bg-red-500',
-};
-
-const BTN_COLOR: Record<TimerState, string> = {
-  normal:  'bg-stone-700 hover:bg-stone-800 active:bg-stone-900 text-white',
-  warning: 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white',
-  overdue: 'bg-red-500 hover:bg-red-600 active:bg-red-700 text-white',
-};
-
 // ── Componente ─────────────────────────────────────────────────────────────
-export default function ComidasClient({
-  staff,
-  initialBreaks,
-  today,
-}: ComidasClientProps) {
+export default function ComidasClient({ staff, initialBreaks, today }: ComidasClientProps) {
   const [breaks, setBreaks] = useState<MealBreak[]>(initialBreaks);
   const [nowMs, setNowMs] = useState(Date.now());
-  const [selectedStaffId, setSelectedStaffId] = useState(staff[0]?.id ?? '');
-  const [starting, setStarting] = useState(false);
+  const [starting, setStarting] = useState<string | null>(null); // staffId being started
 
-  // Tick cada segundo para el countdown en vivo
+  // Tick cada segundo
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
-  const activeBreaks = useMemo(() => breaks.filter((b) => !b.ended_at), [breaks]);
-  const finishedBreaks = useMemo(() => breaks.filter((b) => b.ended_at), [breaks]);
-
-  // Personal disponible (sin comida activa)
-  const availableStaff = useMemo(() => {
-    const onBreak = new Set(activeBreaks.map((b) => b.staff_id));
-    return staff.filter((s) => !onBreak.has(s.id));
-  }, [staff, activeBreaks]);
-
-  // Ajustar selección cuando cambia el personal disponible
-  useEffect(() => {
-    if (
-      availableStaff.length > 0 &&
-      !availableStaff.find((s) => s.id === selectedStaffId)
-    ) {
-      setSelectedStaffId(availableStaff[0].id);
+  // Mapa: staffId → break activo de hoy
+  const activeByStaff = useMemo(() => {
+    const m = new Map<string, MealBreak>();
+    for (const b of breaks) {
+      if (!b.ended_at) m.set(b.staff_id, b);
     }
-  }, [availableStaff, selectedStaffId]);
+    return m;
+  }, [breaks]);
 
-  // ── Iniciar comida ────────────────────────────────────────────────────
-  async function handleStart() {
-    if (!selectedStaffId || starting) return;
-    setStarting(true);
+  // Mapa: staffId → último break terminado de hoy
+  const finishedByStaff = useMemo(() => {
+    const m = new Map<string, MealBreak>();
+    for (const b of breaks) {
+      if (b.ended_at) {
+        const existing = m.get(b.staff_id);
+        if (!existing || b.ended_at > existing.ended_at!) m.set(b.staff_id, b);
+      }
+    }
+    return m;
+  }, [breaks]);
 
+  const activeCount = activeByStaff.size;
+
+  async function handleStart(staffId: string) {
+    if (starting) return;
+    setStarting(staffId);
     try {
-      const result = await startMealBreakAction(selectedStaffId);
-      const staffName =
-        staff.find((s) => s.id === selectedStaffId)?.name ?? selectedStaffId;
+      const result = await startMealBreakAction(staffId);
+      const staffName = staff.find((s) => s.id === staffId)?.name ?? staffId;
       setBreaks((prev) => [
         {
           id: result.id,
@@ -157,24 +105,20 @@ export default function ComidasClient({
         ...prev,
       ]);
     } catch {
-      // Error silenciado — staffId inválido rechazado en servidor
+      // silent
     }
-
-    setStarting(false);
+    setStarting(null);
   }
 
-  // ── Terminar comida ───────────────────────────────────────────────────
   async function handleEnd(breakId: string) {
     const endedAt = new Date().toISOString();
     const record = breaks.find((b) => b.id === breakId);
     if (!record) return;
 
-    const elapsedS = Math.floor(
-      (Date.now() - new Date(record.started_at).getTime()) / 1000,
-    );
+    const elapsedS = Math.floor((Date.now() - new Date(record.started_at).getTime()) / 1000);
     const status: BreakStatus = elapsedS > DURATION_S ? 'overdue' : 'completed';
 
-    // Optimistic update
+    // Optimista
     setBreaks((prev) =>
       prev.map((b) => (b.id === breakId ? { ...b, ended_at: endedAt, status } : b)),
     );
@@ -182,7 +126,7 @@ export default function ComidasClient({
     try {
       await endMealBreakAction(breakId, endedAt, status);
     } catch {
-      // Revertir si el servidor rechaza (ownership / no autenticado)
+      // Revertir
       setBreaks((prev) =>
         prev.map((b) =>
           b.id === breakId ? { ...b, ended_at: null, status: 'active' } : b,
@@ -207,174 +151,137 @@ export default function ComidasClient({
             Comidas
           </h1>
           <p className="text-xs text-stone-500">
-            {today} &middot; 30 min por turno
-            {activeBreaks.length > 0 && (
+            {today} &middot; 30 min
+            {activeCount > 0 && (
               <span className="ml-1 font-semibold text-amber-600">
-                &middot; {activeBreaks.length} activa{activeBreaks.length !== 1 ? 's' : ''}
+                &middot; {activeCount} activa{activeCount !== 1 ? 's' : ''}
               </span>
             )}
           </p>
         </div>
       </header>
 
-      <main className="p-4 max-w-xl mx-auto space-y-5">
+      <main className="p-3 max-w-xl mx-auto">
+        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-stone-100 bg-stone-50">
+                <th className="px-4 py-2.5 text-left text-xs font-bold text-stone-500 uppercase tracking-wider">
+                  Colaborador
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-bold text-stone-500 uppercase tracking-wider">
+                  Estado
+                </th>
+                <th className="px-3 py-2.5 text-right text-xs font-bold text-stone-500 uppercase tracking-wider w-[90px]">
+                  Acción
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-stone-100">
+              {staff.map((member) => {
+                const active = activeByStaff.get(member.id);
+                const finished = finishedByStaff.get(member.id);
+                const isStarting = starting === member.id;
 
-        {/* ── Iniciar comida ─────────────────────────────────────────── */}
-        <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4 space-y-3">
-          <h2 className="text-xs font-bold text-stone-500 uppercase tracking-wider">
-            Iniciar comida
-          </h2>
+                let remaining = 0;
+                let timerState: 'normal' | 'warning' | 'overdue' = 'normal';
 
-          {availableStaff.length === 0 ? (
-            <p className="text-sm text-stone-400 italic py-1">
-              Todo el personal esta en comida o no hay colaboradores activos.
-            </p>
-          ) : (
-            <>
-              <select
-                value={selectedStaffId}
-                onChange={(e) => setSelectedStaffId(e.target.value)}
-                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base bg-white"
-              >
-                {availableStaff.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+                if (active) {
+                  remaining = getRemaining(active.started_at, nowMs);
+                  timerState = remaining <= 0 ? 'overdue' : remaining <= WARNING_S ? 'warning' : 'normal';
+                }
 
-              <button
-                onClick={handleStart}
-                disabled={starting || !selectedStaffId}
-                className="w-full min-h-[44px] bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold rounded-xl shadow transition text-sm disabled:opacity-50"
-              >
-                {starting ? 'Iniciando...' : 'Iniciar comida (30 min)'}
-              </button>
-            </>
-          )}
-        </section>
+                const rowBg = active
+                  ? timerState === 'overdue'
+                    ? 'bg-red-50'
+                    : timerState === 'warning'
+                    ? 'bg-amber-50'
+                    : 'bg-sky-50/40'
+                  : '';
 
-        {/* ── Comidas activas ────────────────────────────────────────── */}
-        {activeBreaks.length > 0 && (
-          <section className="space-y-3">
-            <h2 className="text-xs font-bold text-stone-500 uppercase tracking-wider px-1">
-              En comida ahora ({activeBreaks.length})
-            </h2>
-
-            {activeBreaks.map((b) => {
-              const { remaining, progressPct, state } = getTimerInfo(
-                b.started_at,
-                nowMs,
-              );
-              return (
-                <div
-                  key={b.id}
-                  className={`rounded-2xl border shadow-sm p-4 ${CARD_BG[state]}`}
-                >
-                  {/* Nombre + temporizador */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <p className="font-bold text-stone-900 text-sm">
-                        {b.staff_name}
+                return (
+                  <tr key={member.id} className={rowBg}>
+                    {/* Nombre */}
+                    <td className="px-4 py-3">
+                      <p className="font-semibold text-sm text-stone-900 leading-tight">
+                        {member.name}
                       </p>
-                      <p className="text-xs text-stone-400">
-                        Inicio: {fmtTime(b.started_at)}
-                      </p>
-                    </div>
-                    <div
-                      className={`font-mono font-black tabular-nums leading-none ${TIMER_COLOR[state]}`}
-                      style={{ fontSize: '2rem' }}
-                    >
-                      {fmtTimer(remaining)}
-                    </div>
-                  </div>
-
-                  {/* Barra de progreso */}
-                  <div className="h-2.5 bg-stone-200 rounded-full overflow-hidden mb-3">
-                    <div
-                      className={`h-full rounded-full transition-all duration-1000 ${PROGRESS_COLOR[state]}`}
-                      style={{ width: `${progressPct}%` }}
-                    />
-                  </div>
-
-                  {/* Estado textual */}
-                  <p className={`text-xs mb-3 font-semibold ${TIMER_COLOR[state]}`}>
-                    {state === 'overdue'
-                      ? `Tiempo excedido por ${fmtTimer(remaining).replace('-', '')}`
-                      : state === 'warning'
-                      ? `Quedan menos de 5 minutos`
-                      : `Tiempo restante: ${fmtTimer(remaining)}`}
-                  </p>
-
-                  <button
-                    onClick={() => handleEnd(b.id)}
-                    className={`w-full min-h-[44px] rounded-xl font-bold text-sm transition ${BTN_COLOR[state]}`}
-                  >
-                    {state === 'overdue'
-                      ? 'Terminar (tiempo excedido)'
-                      : 'Terminar comida'}
-                  </button>
-                </div>
-              );
-            })}
-          </section>
-        )}
-
-        {/* ── Historial del dia ──────────────────────────────────────── */}
-        {finishedBreaks.length > 0 && (
-          <section className="space-y-2">
-            <h2 className="text-xs font-bold text-stone-500 uppercase tracking-wider px-1">
-              Historial de hoy ({finishedBreaks.length})
-            </h2>
-
-            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
-              <ul className="divide-y divide-stone-100">
-                {finishedBreaks.map((b) => {
-                  const elapsedS = Math.floor(
-                    (new Date(b.ended_at!).getTime() -
-                      new Date(b.started_at).getTime()) /
-                      1000,
-                  );
-                  const isOverdue = b.status === 'overdue';
-                  return (
-                    <li key={b.id} className="px-4 py-3 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm text-stone-800 truncate">
-                          {b.staff_name}
+                      {active && (
+                        <p className="text-[10px] text-stone-400 mt-0.5">
+                          Salió: {fmtTime(active.started_at)}
                         </p>
-                        <p className="text-xs text-stone-400">
-                          {fmtTime(b.started_at)} &rarr; {fmtTime(b.ended_at!)}
+                      )}
+                      {finished && !active && (
+                        <p className="text-[10px] text-stone-400 mt-0.5">
+                          {fmtTime(finished.started_at)} → {fmtTime(finished.ended_at!)}
                         </p>
-                      </div>
-                      <div className="shrink-0 text-right">
+                      )}
+                    </td>
+
+                    {/* Estado */}
+                    <td className="px-3 py-3">
+                      {active ? (
                         <span
-                          className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                            isOverdue
+                          className={`font-mono font-black tabular-nums text-sm ${
+                            timerState === 'overdue' ? 'text-red-600' :
+                            timerState === 'warning' ? 'text-amber-600' :
+                            'text-sky-700'
+                          }`}
+                        >
+                          {fmtTimer(remaining)}
+                        </span>
+                      ) : finished ? (
+                        <span
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            finished.status === 'overdue'
                               ? 'bg-red-100 text-red-700'
                               : 'bg-emerald-100 text-emerald-700'
                           }`}
                         >
-                          {isOverdue ? 'Excedido' : 'OK'}
+                          {finished.status === 'overdue' ? 'Excedido' : '✓ OK'}
                         </span>
-                        <p className="text-xs text-stone-400 mt-0.5">
-                          {fmtTimer(DURATION_S - elapsedS).replace('-', '+')}
-                          {elapsedS > DURATION_S ? ' extra' : ' restante'}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          </section>
-        )}
+                      ) : (
+                        <span className="text-xs text-stone-400">Libre</span>
+                      )}
+                    </td>
 
-        {/* Estado vacío */}
-        {activeBreaks.length === 0 && finishedBreaks.length === 0 && (
-          <div className="text-center py-10 text-stone-400 text-sm">
-            Sin comidas registradas hoy.
-          </div>
-        )}
+                    {/* Acción */}
+                    <td className="px-3 py-3 text-right">
+                      {active ? (
+                        <button
+                          onClick={() => handleEnd(active.id)}
+                          className={`min-h-[36px] px-3 rounded-xl text-xs font-bold transition ${
+                            timerState === 'overdue'
+                              ? 'bg-red-500 hover:bg-red-600 text-white'
+                              : timerState === 'warning'
+                              ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                              : 'bg-sky-600 hover:bg-sky-700 text-white'
+                          }`}
+                        >
+                          ⏹ Fin
+                        </button>
+                      ) : !finished ? (
+                        <button
+                          onClick={() => handleStart(member.id)}
+                          disabled={isStarting}
+                          className="min-h-[36px] px-3 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white transition disabled:opacity-50"
+                        >
+                          {isStarting ? '...' : '▶ Comer'}
+                        </button>
+                      ) : null}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {staff.length === 0 && (
+            <p className="text-center py-10 text-stone-400 text-sm">
+              Sin colaboradores activos.
+            </p>
+          )}
+        </div>
       </main>
     </div>
   );

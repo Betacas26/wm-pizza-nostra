@@ -1,10 +1,29 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+function sanitizeHeaders(original: Headers): { headers: Headers; dirty: boolean } {
+  const headers = new Headers();
+  let dirty = false;
+  original.forEach((value, key) => {
+    if (value.includes('<') || value.includes('>')) {
+      dirty = true;
+      const cleaned = value.replace(/<[^>]*>\s*/g, '').trim();
+      if (cleaned) {
+        try { headers.set(key, cleaned); } catch { /* skip invalid */ }
+      }
+    } else {
+      try { headers.set(key, value); } catch { /* skip invalid */ }
+    }
+  });
+  return { headers, dirty };
+}
+
 export async function proxy(request: NextRequest) {
+  const { headers: safeHeaders } = sanitizeHeaders(request.headers);
+
   let response = NextResponse.next({
     request: {
-      headers: request.headers,
+      headers: safeHeaders,
     },
   });
 
@@ -26,7 +45,7 @@ export async function proxy(request: NextRequest) {
           request.cookies.set(name, value)
         );
         response = NextResponse.next({
-          request,
+          request: { headers: safeHeaders },
         });
         cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options: CookieOptions }) =>
           response.cookies.set(name, value, options)

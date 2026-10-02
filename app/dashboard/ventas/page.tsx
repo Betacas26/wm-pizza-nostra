@@ -45,6 +45,7 @@ export default async function VentasPage() {
         .from('profiles')
         .select('id, name')
         .eq('active', true)
+        .in('role', ['mesero', 'ayudante'])
         .order('name'),
       supabase
         .from('sales')

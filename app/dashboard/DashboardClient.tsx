@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import {
   UtensilsCrossed,
@@ -13,6 +13,7 @@ import {
   BarChart2,
   LogOut,
   Package,
+  ChevronDown,
 } from 'lucide-react';
 import { signOutAction } from './actions';
 
@@ -48,10 +49,22 @@ const GESTION: Module[] = [
 
 export default function DashboardClient({ userName, userRole, isManager }: Props) {
   const [tab, setTab] = useState(0);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const touchStartX = useRef(0);
 
-  const tabs = ['Turno', 'Gestion', ...(isManager ? ['Reportes'] : [])];
+  const tabs = ['Turno', 'Gestión'];
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuOpen]);
 
   function onTouchStart(e: React.TouchEvent) {
     touchStartX.current = e.touches[0].clientX;
@@ -74,20 +87,77 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
   return (
     <div className="h-screen bg-[#0D1211] text-[#e6edea] flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.2)] z-20 shrink-0">
+      <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.2)] z-30 shrink-0 relative">
         <div>
           <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             WM Pizza Nostra
           </h1>
           <p className="text-xs text-[#7d9990] capitalize">{today}</p>
         </div>
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="w-10 h-10 rounded-full bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A] font-extrabold text-base flex items-center justify-center shrink-0 active:scale-[0.98] transition duration-150 ease-out"
-          aria-label="Menu de usuario"
-        >
-          {userName.charAt(0).toUpperCase()}
-        </button>
+
+        {/* Avatar + dropdown */}
+        <div ref={menuRef} className="relative">
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A] active:scale-[0.98] transition duration-150 ease-out select-none"
+            aria-label="Menu de usuario"
+          >
+            <span className="w-6 h-6 rounded-full flex items-center justify-center font-extrabold text-sm shrink-0">
+              {userName.charAt(0).toUpperCase()}
+            </span>
+            <ChevronDown
+              size={13}
+              strokeWidth={2.5}
+              className={`transition-transform duration-200 ${menuOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {/* Dropdown */}
+          {menuOpen && (
+            <div className="absolute right-0 top-full mt-2 w-52 bg-[#151D1A] border border-[#223530] rounded-2xl shadow-2xl overflow-hidden z-50">
+              {/* User info */}
+              <div className="px-4 py-3 border-b border-[#223530]">
+                <p className="font-bold text-[#e6edea] text-sm leading-tight">{userName}</p>
+                <p className="text-xs text-[#7d9990] capitalize mt-0.5">{userRole}</p>
+              </div>
+
+              {/* Links */}
+              <div className="py-1">
+                {isManager && (
+                  <Link
+                    href="/dashboard/reportes"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-3 px-4 py-2.5 text-[#7d9990] hover:text-[#E8899A] hover:bg-[#1c2b27] transition duration-100"
+                  >
+                    <BarChart2 size={16} strokeWidth={1.5} className="shrink-0" />
+                    <span className="text-sm font-semibold">Reportes</span>
+                  </Link>
+                )}
+                <Link
+                  href="/dashboard/ventas"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center gap-3 px-4 py-2.5 text-[#7d9990] hover:text-[#E8899A] hover:bg-[#1c2b27] transition duration-100"
+                >
+                  <Banknote size={16} strokeWidth={1.5} className="shrink-0" />
+                  <span className="text-sm font-semibold">Historial de ventas</span>
+                </Link>
+              </div>
+
+              {/* Sign out */}
+              <div className="border-t border-[#223530] py-1">
+                <form action={signOutAction}>
+                  <button
+                    type="submit"
+                    className="flex items-center gap-3 px-4 py-2.5 text-red-400 hover:text-red-300 hover:bg-[#1c2b27] transition duration-100 w-full text-left"
+                  >
+                    <LogOut size={16} strokeWidth={1.5} className="shrink-0" />
+                    <span className="text-sm font-semibold">Cerrar sesión</span>
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
       </header>
 
       {/* Sliding panels */}
@@ -118,11 +188,11 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
             </div>
           </section>
 
-          {/* ── Gestion ── */}
+          {/* ── Gestión ── */}
           <section className="min-w-full h-full overflow-y-auto p-4 space-y-3">
             <div className="bg-[#151D1A] rounded-2xl border border-[#223530] p-4">
               <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
-                Gestion del equipo
+                Gestión del equipo
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -135,24 +205,6 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
               ))}
             </div>
           </section>
-
-          {/* ── Reportes (managers only) ── */}
-          {isManager && (
-            <section className="min-w-full h-full overflow-y-auto p-4 space-y-3">
-              <div className="bg-[#151D1A] rounded-2xl border border-[#223530] p-4">
-                <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
-                  Reportes y analisis
-                </p>
-              </div>
-              <Link href="/dashboard/reportes" className={`${CARD} col-span-2`}>
-                <BarChart2 size={22} strokeWidth={1.5} className="text-[#E8899A] mb-2" />
-                <span className="font-bold text-sm block text-[#e6edea]">Reportes</span>
-                <span className="text-xs text-[#7d9990]">
-                  Ventas, rubricas, capitan, ranking
-                </span>
-              </Link>
-            </section>
-          )}
         </div>
       </main>
 
@@ -174,62 +226,6 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
           ))}
         </div>
       </nav>
-
-      {/* Drawer */}
-      {drawerOpen && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 flex items-end"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDrawerOpen(false);
-          }}
-        >
-          <div className="bg-[#151D1A] border-t border-[#223530] rounded-t-3xl w-full px-6 pt-6 pb-8 shadow-2xl space-y-2">
-            {/* User info */}
-            <div className="flex items-center gap-4 pb-4 border-b border-[#223530]">
-              <div className="w-12 h-12 rounded-full bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A] font-extrabold text-xl flex items-center justify-center shrink-0">
-                {userName.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="font-bold text-[#e6edea] text-base">{userName}</p>
-                <p className="text-xs text-[#7d9990] capitalize">{userRole}</p>
-              </div>
-            </div>
-
-            {/* Nav links */}
-            {isManager && (
-              <Link
-                href="/dashboard/reportes"
-                onClick={() => setDrawerOpen(false)}
-                className="flex items-center gap-3 py-3 text-[#7d9990] hover:text-[#E8899A] transition"
-              >
-                <BarChart2 size={20} strokeWidth={1.5} className="w-8 shrink-0" />
-                <span className="font-semibold text-sm">Reportes</span>
-              </Link>
-            )}
-
-            <Link
-              href="/dashboard/ventas"
-              onClick={() => setDrawerOpen(false)}
-              className="flex items-center gap-3 py-3 text-[#7d9990] hover:text-[#E8899A] transition"
-            >
-              <Banknote size={20} strokeWidth={1.5} className="w-8 shrink-0" />
-              <span className="font-semibold text-sm">Historial de ventas</span>
-            </Link>
-
-            <div className="border-t border-[#223530] pt-2">
-              <form action={signOutAction}>
-                <button
-                  type="submit"
-                  className="flex items-center gap-3 py-3 text-red-400 hover:text-red-300 transition w-full text-left"
-                >
-                  <LogOut size={20} strokeWidth={1.5} className="w-8 shrink-0" />
-                  <span className="font-semibold text-sm">Cerrar sesion</span>
-                </button>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

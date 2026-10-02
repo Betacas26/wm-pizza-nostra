@@ -1,13 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { submitSaleAction, deleteSaleAction, saveProductSalesAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
 type SaleShift = 'Matutino' | 'Vespertino';
-type ActiveTab = 'productos' | 'caja' | 'hoy' | 'mes';
+type ActiveTab = 'productos' | 'caja' | 'hoy';
 
 export interface StaffMember {
   id: string;
@@ -65,32 +65,6 @@ function fmtMXN(n: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
-}
-
-function exportarCSV(records: SaleRecord[], monthLabel: string) {
-  const headers = [
-    'Fecha', 'Turno', 'Mesero', 'Venta Total',
-    'Aporte (4.5%)', 'Cristaleria', 'Total a Entregar',
-    'Propina Capitan', 'Sancion %', 'Bono Sancion',
-  ];
-  const rows = records.map((r) => [
-    r.sale_date, r.shift,
-    `"${r.staff_name.replace(/"/g, '""')}"`,
-    r.total.toFixed(2), r.contribution.toFixed(2),
-    r.glassware.toFixed(2), r.to_deliver.toFixed(2),
-    r.captain_tip.toFixed(2),
-    r.sanction_pct.toFixed(2), r.sanction_amount.toFixed(2),
-  ]);
-  const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
-  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `ventas_${monthLabel}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 // ── Keypad ─────────────────────────────────────────────────────────────────
@@ -218,170 +192,6 @@ export default function VentasClient({
   // ── Ventas del dia ─────────────────────────────────────────────────────
   const [todaySales, setTodaySales] = useState<SaleRecord[]>(initialSales);
 
-  // ── Resumen mensual ────────────────────────────────────────────────────
-  const [selectedMonth, setSelectedMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  });
-  const [monthSales, setMonthSales] = useState<SaleRecord[]>([]);
-  const [monthLoading, setMonthLoading] = useState(false);
-
-  const monthOptions = useMemo(() => {
-    const now = new Date();
-    const opts: { value: string; label: string }[] = [];
-    for (let i = 0; i < 13; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const y = d.getFullYear();
-      const m = d.getMonth() + 1;
-      opts.push({
-        value: `${y}-${String(m).padStart(2, '0')}`,
-        label: d.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' }),
-      });
-    }
-    return opts;
-  }, []);
-
-  const loadMonthSales = useCallback(
-    async (ym: string) => {
-      setMonthLoading(true);
-      const [yearStr, monthStr] = ym.split('-');
-      const year = parseInt(yearStr, 10);
-      const month = parseInt(monthStr, 10);
-      const firstDay = `${year}-${String(month).padStart(2, '0')}-01`;
-      const daysInMonth = new Date(year, month, 0).getDate();
-      const lastDay = `${year}-${String(month).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
-
-      const { data: salesData } = await supabase
-        .from('sales')
-        .select(
-          'id, sale_date, shift, staff_id, total, contribution, glassware, captain_tip, to_deliver, sanction_pct, sanction_amount',
-        )
-        .gte('sale_date', firstDay)
-        .lte('sale_date', lastDay)
-        .order('sale_date', { ascending: true });
-
-      if (!salesData?.length) {
-        setMonthSales([]);
-        setMonthLoading(false);
-        return;
-      }
-
-      const staffIds = [
-        ...new Set((salesData as { staff_id: string }[]).map((s) => s.staff_id)),
-      ];
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, name')
-        .in('id', staffIds);
-
-      const nameMap = new Map<string, string>(
-        (profilesData ?? []).map((p: { id: string; name: string | null }) => [
-          p.id,
-          p.name ?? '(sin nombre)',
-        ]),
-      );
-
-      const records: SaleRecord[] = (
-        salesData as {
-          id: string;
-          sale_date: string;
-          shift: string;
-          staff_id: string;
-          total: number | null;
-          contribution: number | null;
-          glassware: number | null;
-          captain_tip: number | null;
-          to_deliver: number | null;
-          sanction_pct: number | null;
-          sanction_amount: number | null;
-        }[]
-      ).map((s) => ({
-        id: s.id,
-        sale_date: s.sale_date,
-        shift: s.shift as SaleShift,
-        staff_id: s.staff_id,
-        staff_name: nameMap.get(s.staff_id) ?? s.staff_id,
-        total: Number(s.total) || 0,
-        contribution: Number(s.contribution) || 0,
-        glassware: Number(s.glassware) || 0,
-        captain_tip: Number(s.captain_tip) || 0,
-        to_deliver: Number(s.to_deliver) || 0,
-        sanction_pct: Number(s.sanction_pct) || 0,
-        sanction_amount: Number(s.sanction_amount) || 0,
-      }));
-
-      setMonthSales(records);
-      setMonthLoading(false);
-    },
-    [supabase],
-  );
-
-  useEffect(() => {
-    if (activeTab === 'mes') {
-      loadMonthSales(selectedMonth);
-    }
-  }, [activeTab, selectedMonth, loadMonthSales]);
-
-  const monthSummary = useMemo(() => {
-    type StaffAgg = {
-      name: string;
-      count: number;
-      total: number;
-      contribution: number;
-      glassware: number;
-      to_deliver: number;
-      captain_tip: number;
-      sanction_amount: number;
-    };
-    const byStaff = new Map<string, StaffAgg>();
-
-    for (const s of monthSales) {
-      const existing = byStaff.get(s.staff_id);
-      if (existing) {
-        existing.count++;
-        existing.total += s.total;
-        existing.contribution += s.contribution;
-        existing.glassware += s.glassware;
-        existing.to_deliver += s.to_deliver;
-        existing.captain_tip += s.captain_tip;
-        existing.sanction_amount += s.sanction_amount;
-      } else {
-        byStaff.set(s.staff_id, {
-          name: s.staff_name,
-          count: 1,
-          total: s.total,
-          contribution: s.contribution,
-          glassware: s.glassware,
-          to_deliver: s.to_deliver,
-          captain_tip: s.captain_tip,
-          sanction_amount: s.sanction_amount,
-        });
-      }
-    }
-
-    let grandTotal = 0, grandContrib = 0, grandGlass = 0,
-        grandDeliver = 0, grandCaptain = 0, grandSanction = 0;
-    for (const v of byStaff.values()) {
-      grandTotal += v.total;
-      grandContrib += v.contribution;
-      grandGlass += v.glassware;
-      grandDeliver += v.to_deliver;
-      grandCaptain += v.captain_tip;
-      grandSanction += v.sanction_amount;
-    }
-
-    const r = (n: number) => Math.round(n * 100) / 100;
-    return {
-      byStaff,
-      grandTotal: r(grandTotal),
-      grandContrib: r(grandContrib),
-      grandGlass: r(grandGlass),
-      grandDeliver: r(grandDeliver),
-      grandCaptain: r(grandCaptain),
-      grandSanction: r(grandSanction),
-    };
-  }, [monthSales]);
-
   const dayTotals = useMemo(() => {
     const r = (n: number) => Math.round(n * 100) / 100;
     return {
@@ -449,7 +259,6 @@ export default function VentasClient({
     { key: 'productos', label: 'Productos' },
     { key: 'caja',      label: 'Cierre' },
     { key: 'hoy',       label: `Hoy\u00a0(${todaySales.length})` },
-    { key: 'mes',       label: 'Mes' },
   ];
 
   return (
@@ -878,142 +687,6 @@ export default function VentasClient({
                     </div>
                   </div>
                 ))}
-              </>
-            )}
-          </div>
-        )}
-
-        {/* ── Tab: Mes ─────────────────────────────────────────────────── */}
-        {activeTab === 'mes' && (
-          <div className="space-y-4 pt-1">
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E] capitalize"
-            >
-              {monthOptions.map((opt) => (
-                <option key={opt.value} value={opt.value} className="capitalize">
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-
-            {monthLoading ? (
-              <div className="text-center py-14 text-[#7d9990] text-sm">
-                Cargando...
-              </div>
-            ) : monthSales.length === 0 ? (
-              <div className="text-center py-14 text-[#7d9990] text-sm">
-                Sin ventas en este mes.
-              </div>
-            ) : (
-              <>
-                {[...monthSummary.byStaff.entries()].map(([staffId, agg]) => (
-                  <div
-                    key={staffId}
-                    className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="font-bold text-[#e6edea] text-sm">{agg.name}</p>
-                      <span className="text-xs text-[#7d9990]">
-                        {agg.count} registro{agg.count !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-[#7d9990]">Total ventas</span>
-                        <span className="font-semibold text-[#e6edea]">
-                          {fmtMXN(Math.round(agg.total * 100) / 100)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#7d9990]">Aporte</span>
-                        <span className="font-semibold text-[#e6edea]">
-                          {fmtMXN(Math.round(agg.contribution * 100) / 100)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#7d9990]">Cristaleria</span>
-                        <span className="font-semibold text-[#e6edea]">
-                          {fmtMXN(Math.round(agg.glassware * 100) / 100)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-bold text-[#e6edea]">A entregar</span>
-                        <span className="font-mono font-bold tracking-tight text-[#E8899A]">
-                          {fmtMXN(Math.round(agg.to_deliver * 100) / 100)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#7d9990] italic">Propina Cap.</span>
-                        <span className="text-sky-400 font-semibold">
-                          {fmtMXN(Math.round(agg.captain_tip * 100) / 100)}
-                        </span>
-                      </div>
-                      {agg.sanction_amount > 0 && (
-                        <div className="flex justify-between">
-                          <span className="text-orange-400">Bonos retenidos</span>
-                          <span className="text-orange-400 font-semibold">
-                            {fmtMXN(Math.round(agg.sanction_amount * 100) / 100)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-
-                <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl p-4">
-                  <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-3">
-                    Totales del mes &middot; {monthSales.length} registros
-                  </p>
-                  <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-[#7d9990]">Total ventas</span>
-                      <span className="font-semibold text-[#e6edea]">
-                        {fmtMXN(monthSummary.grandTotal)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#7d9990]">Aporte</span>
-                      <span className="font-semibold text-[#e6edea]">
-                        {fmtMXN(monthSummary.grandContrib)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#7d9990]">Cristaleria</span>
-                      <span className="font-semibold text-[#e6edea]">
-                        {fmtMXN(monthSummary.grandGlass)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="font-bold text-[#e6edea]">A entregar</span>
-                      <span className="font-mono font-bold tracking-tight text-[#E8899A]">
-                        {fmtMXN(monthSummary.grandDeliver)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-[#7d9990]">Propina Capitan</span>
-                      <span className="font-semibold text-sky-400">
-                        {fmtMXN(monthSummary.grandCaptain)}
-                      </span>
-                    </div>
-                    {monthSummary.grandSanction > 0 && (
-                      <div className="flex justify-between">
-                        <span className="text-orange-400">Bonos retenidos</span>
-                        <span className="font-bold text-orange-400">
-                          {fmtMXN(monthSummary.grandSanction)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => exportarCSV(monthSales, selectedMonth)}
-                  className="w-full min-h-[44px] bg-[#1c2b27] border border-[#223530] hover:border-[#7d9990] active:scale-[0.98] text-[#e6edea] font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm"
-                >
-                  Exportar CSV
-                </button>
               </>
             )}
           </div>

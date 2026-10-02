@@ -11,7 +11,7 @@ interface Props {
 }
 
 const CARD =
-  'p-4 bg-white rounded-2xl border border-stone-200 shadow-sm text-left hover:border-amber-400 active:bg-stone-50 transition block';
+  'p-4 bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] text-left hover:border-amber-400 active:scale-[0.98] active:bg-stone-50 transition duration-150 ease-out select-none block';
 
 interface Module {
   href: string;
@@ -59,7 +59,7 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
   });
 
   return (
-    <div className="h-screen bg-stone-50 text-stone-800 flex flex-col overflow-hidden">
+    <div className="h-screen bg-[#F8F7F4] text-stone-800 flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between shadow-sm z-20 shrink-0">
         <div>
@@ -70,7 +70,7 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
         </div>
         <button
           onClick={() => setDrawerOpen(true)}
-          className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 font-extrabold text-base flex items-center justify-center shrink-0"
+          className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 font-extrabold text-base flex items-center justify-center shrink-0 active:scale-[0.98] transition duration-150 ease-out"
           aria-label="Menú de usuario"
         >
           {userName.charAt(0).toUpperCase()}
@@ -89,7 +89,7 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
         >
           {/* ── Turno ── */}
           <section className="min-w-full h-full overflow-y-auto p-4 space-y-3">
-            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4">
+            <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4">
               <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                 Operaciones del turno
               </p>
@@ -107,7 +107,7 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
 
           {/* ── Gestión ── */}
           <section className="min-w-full h-full overflow-y-auto p-4 space-y-3">
-            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4">
+            <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4">
               <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                 Gestión del equipo
               </p>
@@ -126,7 +126,7 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
           {/* ── Reportes (managers only) ── */}
           {isManager && (
             <section className="min-w-full h-full overflow-y-auto p-4 space-y-3">
-              <div className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4">
+              <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4">
                 <p className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                   Reportes y análisis
                 </p>
@@ -144,20 +144,22 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
       </main>
 
       {/* Bottom tab bar */}
-      <nav className="bg-white border-t border-stone-200 flex z-20 shrink-0">
-        {tabs.map((label, i) => (
-          <button
-            key={label}
-            onClick={() => setTab(i)}
-            className={`flex-1 py-3.5 text-xs font-semibold transition border-t-2 ${
-              tab === i
-                ? 'border-amber-500 text-amber-600'
-                : 'border-transparent text-stone-400 hover:text-stone-600'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      <nav className="bg-white border-t border-stone-200 px-4 py-2.5 z-20 shrink-0">
+        <div className="p-1 bg-stone-100 rounded-xl flex">
+          {tabs.map((label, i) => (
+            <button
+              key={label}
+              onClick={() => setTab(i)}
+              className={`flex-1 h-9 rounded-lg text-xs font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
+                tab === i
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </nav>
 
       {/* Drawer */}

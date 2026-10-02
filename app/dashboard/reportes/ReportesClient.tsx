@@ -196,7 +196,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   ];
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800">
+    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
         <Link
@@ -214,21 +214,23 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         </div>
       </header>
 
-      {/* Subtabs */}
-      <div className="bg-white border-b border-stone-200 flex sticky top-[57px] z-10">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex-1 py-3 text-sm font-semibold transition border-b-2 ${
-              tab === t.key
-                ? 'border-amber-500 text-amber-600'
-                : 'border-transparent text-stone-500 hover:text-stone-700'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      {/* Subtabs — segmented control */}
+      <div className="bg-white border-b border-stone-200 sticky top-[57px] z-10 px-4 py-2">
+        <div className="p-1 bg-stone-100 rounded-xl flex">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`flex-1 h-9 rounded-lg text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
+                tab === t.key
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <main className="p-4 max-w-2xl mx-auto space-y-4">
@@ -262,18 +264,18 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-xs text-stone-500">Total ventas</p>
-                      <p className="font-bold text-stone-900">{fmtMXN(grandTotals.total)}</p>
+                      <p className="font-mono font-bold tracking-tight text-stone-900">{fmtMXN(grandTotals.total)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-stone-500">A entregar total</p>
-                      <p className="font-bold text-amber-600">{fmtMXN(grandTotals.to_deliver)}</p>
+                      <p className="font-mono font-bold tracking-tight text-amber-600">{fmtMXN(grandTotals.to_deliver)}</p>
                     </div>
                   </div>
                 </div>
 
                 {/* Por mesero */}
                 {staffSummaries.map((s) => (
-                  <div key={s.staff_id} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4">
+                  <div key={s.staff_id} className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4">
                     <div className="flex items-center justify-between mb-2">
                       <p className="font-bold text-stone-900 text-sm">{s.name}</p>
                       <span className="text-xs text-stone-400">{s.count} reg.</span>
@@ -304,7 +306,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                   <p className="text-xs font-bold text-sky-700 uppercase tracking-wider mb-1">
                     Total propinas capitán
                   </p>
-                  <p className="text-2xl font-extrabold text-sky-700">
+                  <p className="text-2xl font-mono font-extrabold tracking-tight text-sky-700">
                     {fmtMXN(grandTotals.captain_tip)}
                   </p>
                   <p className="text-xs text-stone-400 mt-1">
@@ -313,7 +315,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                 </div>
 
                 {/* Por día */}
-                <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+                <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="border-b border-stone-100 bg-stone-50">
@@ -349,7 +351,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                       <p className="text-xs font-bold text-orange-700 uppercase tracking-wider mb-1">
                         Total bonos retenidos
                       </p>
-                      <p className="text-2xl font-extrabold text-orange-600">
+                      <p className="text-2xl font-mono font-extrabold tracking-tight text-orange-600">
                         {fmtMXN(grandTotals.sanction_amount)}
                       </p>
                     </div>
@@ -357,7 +359,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                     {staffSummaries
                       .filter((s) => s.sanction_amount > 0)
                       .map((s) => (
-                        <div key={s.staff_id} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4">
+                        <div key={s.staff_id} className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4">
                           <div className="flex items-center justify-between">
                             <p className="font-bold text-stone-900 text-sm">{s.name}</p>
                             <p className="font-bold text-orange-600">{fmtMXN(s.sanction_amount)}</p>
@@ -377,7 +379,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
               <div className="space-y-2">
                 <p className="text-xs text-stone-400 px-1">Ordenado por total de ventas</p>
                 {staffSummaries.map((s, idx) => (
-                  <div key={s.staff_id} className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4 flex items-center gap-4">
+                  <div key={s.staff_id} className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 flex items-center gap-4">
                     <div
                       className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-sm shrink-0 ${
                         idx === 0 ? 'bg-amber-400 text-white' :
@@ -393,7 +395,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                       <p className="text-xs text-stone-400">{s.count} reg. &middot; A entregar: {fmtMXN(s.to_deliver)}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-extrabold text-stone-900 text-base">{fmtMXN(s.total)}</p>
+                      <p className="font-mono font-extrabold tracking-tight text-stone-900 text-base">{fmtMXN(s.total)}</p>
                     </div>
                   </div>
                 ))}

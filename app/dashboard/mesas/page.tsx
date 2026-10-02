@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import Link from 'next/link';
+import MesasClient from './MesasClient';
 
 // ── Constantes de área ─────────────────────────────────────────────────────
 type Area = 'PB' | 'PA' | 'TE';
@@ -188,13 +189,26 @@ export default async function MesasPage() {
 
   const today = new Date().toISOString().split('T')[0];
 
-  // Datos en paralelo: meseros activos + asignaciones guardadas
-  const [meseros, { data: savedRows }] = await Promise.all([
+  // Calcular fechas de la semana actual (Dom-Sáb) para alertas de rotación
+  const todayDate = new Date(today);
+  const weekDates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const wd = new Date(todayDate);
+    wd.setDate(todayDate.getDate() - todayDate.getDay() + i);
+    weekDates.push(wd.toISOString().split('T')[0]);
+  }
+
+  // Datos en paralelo: meseros activos + asignaciones guardadas + asignaciones semanales
+  const [meseros, { data: savedRows }, { data: weekAssignmentsData }] = await Promise.all([
     fetchActiveMeseros(today),
     supabase
       .from('table_assignments')
       .select('table_code, staff_id')
       .eq('day', today),
+    supabase
+      .from('table_assignments')
+      .select('day, table_code, staff_id')
+      .in('day', weekDates),
   ]);
 
   const hasSaved = (savedRows?.length ?? 0) > 0;
@@ -246,8 +260,32 @@ export default async function MesasPage() {
     }
   }
 
+  // ── Alertas de rotación semanal (spec §1: máx. 2 repeticiones/área/semana) ──
+  interface WeekOvg { name: string; area: string; count: number }
+  const weeklyOverages: WeekOvg[] = [];
+
+  if (weekAssignmentsData && weekAssignmentsData.length > 0) {
+    const staffAreaDays = new Map<string, Map<string, Set<string>>>();
+    for (const row of weekAssignmentsData as { day: string; table_code: string; staff_id: string }[]) {
+      const area = (Object.entries(AREA_TABLES) as [Area, string[]][]).find(
+        ([, tables]) => tables.includes(row.table_code),
+      )?.[0];
+      if (!area) continue;
+      if (!staffAreaDays.has(row.staff_id)) staffAreaDays.set(row.staff_id, new Map());
+      const areaMap = staffAreaDays.get(row.staff_id)!;
+      if (!areaMap.has(area)) areaMap.set(area, new Set());
+      areaMap.get(area)!.add(row.day);
+    }
+    for (const [staffId, areaMap] of staffAreaDays.entries()) {
+      const name = meseroById.get(staffId)?.name ?? staffId;
+      for (const [area, days] of areaMap.entries()) {
+        if (days.size > 2) weeklyOverages.push({ name, area, count: days.size });
+      }
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800">
+    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
         <Link
@@ -278,82 +316,22 @@ export default async function MesasPage() {
         <form action={autoAssignAction}>
           <button
             type="submit"
-            className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold rounded-xl shadow transition text-sm"
+            className="w-full min-h-[44px] py-3.5 bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition duration-150 ease-out select-none text-sm"
           >
             {hasSaved ? 'Regenerar asignacion' : 'Asignar automaticamente'}
           </button>
         </form>
 
-        {/* Aviso si no hay meseros */}
-        {meseros.length === 0 && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
-            No hay meseros activos con turno hoy. Si aun no se capturaron
-            horarios, se usaran todos los meseros activos.
-          </div>
-        )}
-
-        {/* Tarjetas por area */}
-        {AREA_ORDER.map((area) => {
-          const workers = byAreaDisplay.get(area) ?? [];
-          return (
-            <section
-              key={area}
-              className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden"
-            >
-              <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
-                <h2 className="font-bold text-stone-900 text-sm">
-                  {AREA_LABELS[area]}
-                  <span className="ml-2 text-xs font-normal text-stone-400">
-                    ({area})
-                  </span>
-                </h2>
-                <span className="text-xs text-stone-400">
-                  {AREA_TABLES[area].length} mesas
-                </span>
-              </div>
-
-              {workers.length === 0 ? (
-                <p className="px-4 py-4 text-sm text-stone-400 italic">
-                  Sin asignacion
-                </p>
-              ) : (
-                <ul className="divide-y divide-stone-100">
-                  {workers.map((w) => (
-                    <li key={w.id} className="px-4 py-3">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="font-semibold text-sm text-stone-800">
-                          {w.name}
-                        </span>
-                        {w.isHome ? (
-                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                            Area propia
-                          </span>
-                        ) : (
-                          <span className="text-xs bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full">
-                            Cobertura
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {w.tables.map((t) => (
-                          <span
-                            key={t}
-                            className="text-xs font-mono bg-stone-100 text-stone-700 px-2 py-1 rounded-lg"
-                          >
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="mt-1.5 text-xs text-stone-400">
-                        {w.tables.length} mesa{w.tables.length !== 1 ? 's' : ''}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          );
-        })}
+        <MesasClient
+          areasData={AREA_ORDER.map((area) => ({
+            area,
+            label: AREA_LABELS[area],
+            totalTables: AREA_TABLES[area].length,
+            workers: byAreaDisplay.get(area) ?? [],
+          }))}
+          noMeseros={meseros.length === 0}
+          weeklyOverages={weeklyOverages}
+        />
       </main>
     </div>
   );

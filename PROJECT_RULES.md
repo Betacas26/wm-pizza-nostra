@@ -32,3 +32,4 @@
    - Cristalería = $10.00
    - Total a entregar = Aporte + Cristalería
    - Propina Capitán = Venta * 0.8% (puramente informativo, no se suma a to_deliver).
+   

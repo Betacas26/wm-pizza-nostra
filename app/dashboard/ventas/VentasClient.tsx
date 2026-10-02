@@ -326,7 +326,7 @@ export default function VentasClient({
   ];
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800">
+    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
         <Link
@@ -345,21 +345,23 @@ export default function VentasClient({
         )}
       </header>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-stone-200 flex sticky top-[57px] z-10">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 py-3 text-sm font-semibold transition border-b-2 ${
-              activeTab === tab.key
-                ? 'border-amber-500 text-amber-600'
-                : 'border-transparent text-stone-500 hover:text-stone-700'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Tabs — segmented control */}
+      <div className="bg-white border-b border-stone-200 sticky top-[57px] z-10 px-4 py-2">
+        <div className="p-1 bg-stone-100 rounded-xl flex">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex-1 h-9 rounded-lg text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
+                activeTab === tab.key
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <main className="p-4 max-w-xl mx-auto">
@@ -417,13 +419,14 @@ export default function VentasClient({
               </label>
               <input
                 type="number"
+                inputMode="decimal"
                 min="0"
                 step="0.01"
                 value={formTotal}
                 onChange={(e) => setFormTotal(e.target.value)}
                 placeholder="0.00"
                 required
-                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base"
+                className="w-full min-h-[56px] px-3 py-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-2xl font-mono text-center font-bold text-stone-900"
               />
             </div>
 
@@ -465,7 +468,7 @@ export default function VentasClient({
                 </div>
                 <div className="flex justify-between text-sm border-t border-stone-200 pt-2.5">
                   <span className="font-bold text-stone-900">Total a entregar</span>
-                  <span className="font-bold text-xl text-amber-600">{fmtMXN(liveCalc.to_deliver)}</span>
+                  <span className="font-mono font-bold text-xl text-amber-600">{fmtMXN(liveCalc.to_deliver)}</span>
                 </div>
                 <div className="flex justify-between text-xs pt-0.5">
                   <span className="text-stone-400 italic">
@@ -491,7 +494,7 @@ export default function VentasClient({
             <button
               type="submit"
               disabled={saving || !formStaffId || !formTotal}
-              className="w-full min-h-[44px] bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white font-bold rounded-xl shadow transition text-sm disabled:opacity-50"
+              className="w-full min-h-[44px] bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm disabled:opacity-50"
             >
               {saving ? 'Guardando...' : 'Guardar venta'}
             </button>
@@ -508,22 +511,22 @@ export default function VentasClient({
             ) : (
               <>
                 {/* Resumen rápido del día */}
-                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+                <div className="bg-amber-50 border border-amber-200/70 rounded-2xl p-4">
                   <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3">
                     Resumen del dia
                   </p>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <p className="text-xs text-stone-500 mb-0.5">Total ventas</p>
-                      <p className="font-bold text-stone-900">{fmtMXN(dayTotals.total)}</p>
+                      <p className="font-mono font-bold tracking-tight text-stone-900">{fmtMXN(dayTotals.total)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-stone-500 mb-0.5">A entregar total</p>
-                      <p className="font-bold text-amber-600">{fmtMXN(dayTotals.to_deliver)}</p>
+                      <p className="font-mono font-bold tracking-tight text-amber-600">{fmtMXN(dayTotals.to_deliver)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-stone-500 mb-0.5">Propina Capitán</p>
-                      <p className="font-bold text-sky-700">{fmtMXN(dayTotals.captain_tip)}</p>
+                      <p className="font-mono font-bold tracking-tight text-sky-700">{fmtMXN(dayTotals.captain_tip)}</p>
                     </div>
                     {dayTotals.sanction_amount > 0 && (
                       <div>
@@ -542,7 +545,7 @@ export default function VentasClient({
                 {todaySales.map((sale) => (
                   <div
                     key={sale.id}
-                    className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4"
+                    className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4"
                   >
                     <div className="flex items-start justify-between gap-2 mb-3">
                       <div>
@@ -630,7 +633,7 @@ export default function VentasClient({
                 {[...monthSummary.byStaff.entries()].map(([staffId, agg]) => (
                   <div
                     key={staffId}
-                    className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4"
+                    className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4"
                   >
                     <div className="flex items-center justify-between mb-3">
                       <p className="font-bold text-stone-900 text-sm">{agg.name}</p>
@@ -653,7 +656,7 @@ export default function VentasClient({
                       </div>
                       <div className="flex justify-between">
                         <span className="font-bold text-stone-900">A entregar</span>
-                        <span className="font-bold text-amber-600">{fmtMXN(Math.round(agg.to_deliver * 100) / 100)}</span>
+                        <span className="font-mono font-bold tracking-tight text-amber-600">{fmtMXN(Math.round(agg.to_deliver * 100) / 100)}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-stone-400 italic">Propina Cap.</span>
@@ -689,7 +692,7 @@ export default function VentasClient({
                     </div>
                     <div className="flex justify-between">
                       <span className="font-bold text-stone-900">A entregar</span>
-                      <span className="font-bold text-amber-600">{fmtMXN(monthSummary.grandDeliver)}</span>
+                      <span className="font-mono font-bold tracking-tight text-amber-600">{fmtMXN(monthSummary.grandDeliver)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-stone-600">Propina Capitán</span>
@@ -706,7 +709,7 @@ export default function VentasClient({
 
                 <button
                   onClick={() => exportarCSV(monthSales, selectedMonth)}
-                  className="w-full min-h-[44px] bg-stone-700 hover:bg-stone-800 active:bg-stone-900 text-white font-bold rounded-xl shadow transition text-sm"
+                  className="w-full min-h-[44px] bg-stone-700 hover:bg-stone-800 active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm"
                 >
                   Exportar CSV
                 </button>

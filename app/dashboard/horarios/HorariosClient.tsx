@@ -180,7 +180,7 @@ export default function HorariosClient({
                                'Copiar semana anterior';
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800">
+    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
         <Link
@@ -205,19 +205,19 @@ export default function HorariosClient({
         <div className="flex gap-2">
           <button
             onClick={() => setWeekStart((d) => addDays(d, -7))}
-            className="flex-1 min-h-[44px] bg-white border border-stone-200 rounded-xl font-semibold text-stone-600 hover:bg-stone-50 text-sm transition"
+            className="flex-1 min-h-[44px] bg-white border border-stone-200/70 rounded-xl font-semibold text-stone-600 hover:bg-stone-50 text-sm transition duration-150 ease-out active:scale-[0.98] select-none"
           >
             ← Anterior
           </button>
           <button
             onClick={() => setWeekStart(getWeekStart(new Date()))}
-            className="px-4 min-h-[44px] bg-white border border-amber-300 rounded-xl font-bold text-amber-600 hover:bg-amber-50 text-sm transition"
+            className="px-4 min-h-[44px] bg-white border border-amber-300 rounded-xl font-bold text-amber-600 hover:bg-amber-50 text-sm transition duration-150 ease-out active:scale-[0.98] select-none"
           >
             Hoy
           </button>
           <button
             onClick={() => setWeekStart((d) => addDays(d, 7))}
-            className="flex-1 min-h-[44px] bg-white border border-stone-200 rounded-xl font-semibold text-stone-600 hover:bg-stone-50 text-sm transition"
+            className="flex-1 min-h-[44px] bg-white border border-stone-200/70 rounded-xl font-semibold text-stone-600 hover:bg-stone-50 text-sm transition duration-150 ease-out active:scale-[0.98] select-none"
           >
             Siguiente →
           </button>
@@ -228,7 +228,7 @@ export default function HorariosClient({
           <button
             onClick={handleCopyPrev}
             disabled={copyStatus === 'copying'}
-            className={`w-full min-h-[44px] rounded-xl font-bold text-sm transition ${
+            className={`w-full min-h-[44px] rounded-xl font-bold text-sm transition duration-150 ease-out active:scale-[0.98] select-none ${
               copyStatus === 'done'  ? 'bg-emerald-500 text-white' :
               copyStatus === 'empty' ? 'bg-stone-400 text-white' :
               'bg-stone-700 hover:bg-stone-800 text-white disabled:opacity-50'
@@ -260,7 +260,7 @@ export default function HorariosClient({
             No hay colaboradores activos.
           </div>
         ) : (
-          <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>

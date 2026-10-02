@@ -167,7 +167,7 @@ export default function PersonalClient({
   const totalActive = profiles.filter((p) => p.active).length;
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800">
+    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
         <Link
@@ -194,7 +194,7 @@ export default function PersonalClient({
             setCreateError(null);
             setShowCreate(true);
           }}
-          className="bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white text-sm font-bold px-3 py-2 rounded-xl shadow transition"
+          className="bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white text-sm font-bold px-3 min-h-[44px] rounded-xl shadow transition duration-150 ease-out select-none"
         >
           + Nuevo
         </button>
@@ -215,7 +215,7 @@ export default function PersonalClient({
               <span className="font-normal normal-case">({members.length})</span>
             </h2>
 
-            <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
               <ul className="divide-y divide-stone-100">
                 {members.map((profile) => {
                   const badgeClass =

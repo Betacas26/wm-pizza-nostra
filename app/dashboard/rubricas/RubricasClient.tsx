@@ -107,7 +107,7 @@ function EvalCard({ record }: { record: EvaluationRecord }) {
   const avg = record.average_score;
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
       {/* Cabecera tocable */}
       <button
         type="button"
@@ -383,7 +383,7 @@ export default function RubricasClient({
     : [{ key: 'historial', label: 'Historial' }];
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800">
+    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
         <Link
@@ -403,21 +403,23 @@ export default function RubricasClient({
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-stone-200 flex sticky top-[57px] z-10">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key as 'nueva' | 'historial')}
-            className={`flex-1 py-3 text-sm font-semibold transition border-b-2 ${
-              activeTab === tab.key
-                ? 'border-amber-500 text-amber-600'
-                : 'border-transparent text-stone-500 hover:text-stone-700'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Tabs — segmented control */}
+      <div className="bg-white border-b border-stone-200 sticky top-[57px] z-10 px-4 py-2">
+        <div className="p-1 bg-stone-100 rounded-xl flex">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as 'nueva' | 'historial')}
+              className={`flex-1 h-9 rounded-lg text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
+                activeTab === tab.key
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <main className="p-4 max-w-xl mx-auto space-y-4">
@@ -426,7 +428,7 @@ export default function RubricasClient({
         {activeTab === 'nueva' && isManager && (
           <>
             {/* Selector de colaborador */}
-            <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4 space-y-3">
+            <section className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 space-y-3">
               <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                 Colaborador a evaluar
               </h2>
@@ -477,7 +479,7 @@ export default function RubricasClient({
             )}
 
             {/* Criterios */}
-            <section className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+            <section className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
               <div className="px-4 py-3 border-b border-stone-100">
                 <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                   Criterios de evaluación &mdash; Puntaje 1 al 5
@@ -512,7 +514,7 @@ export default function RubricasClient({
                             key={n}
                             type="button"
                             onClick={() => handleScore(crit.key, n)}
-                            className={`flex-1 min-h-[44px] rounded-xl font-black text-base transition ${
+                            className={`flex-1 min-h-[44px] rounded-xl font-black text-base transition duration-150 ease-out active:scale-[0.98] select-none ${
                               score === n
                                 ? SCORE_BTN_ON[n]
                                 : 'bg-stone-100 text-stone-400 hover:bg-stone-200'
@@ -529,7 +531,7 @@ export default function RubricasClient({
             </section>
 
             {/* Observaciones */}
-            <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4 space-y-2">
+            <section className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 space-y-2">
               <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                 Observaciones
               </h2>
@@ -560,9 +562,9 @@ export default function RubricasClient({
               type="button"
               disabled={!canSubmit}
               onClick={handleSubmit}
-              className={`w-full min-h-[52px] font-bold rounded-xl shadow transition text-sm ${
+              className={`w-full min-h-[52px] font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm ${
                 canSubmit
-                  ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white'
+                  ? 'bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white'
                   : 'bg-stone-200 text-stone-400 cursor-not-allowed'
               }`}
             >
@@ -604,7 +606,7 @@ export default function RubricasClient({
             ) : (
               <>
                 {/* Resumen mensual por colaborador */}
-                <section className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+                <section className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
                   <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between">
                     <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                       Desempeño mensual

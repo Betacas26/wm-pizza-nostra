@@ -136,7 +136,7 @@ export default function ComidasClient({ staff, initialBreaks, today }: ComidasCl
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800">
+    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
         <Link
@@ -162,7 +162,7 @@ export default function ComidasClient({ staff, initialBreaks, today }: ComidasCl
       </header>
 
       <main className="p-3 max-w-xl mx-auto">
-        <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-stone-100 bg-stone-50">
@@ -250,7 +250,7 @@ export default function ComidasClient({ staff, initialBreaks, today }: ComidasCl
                       {active ? (
                         <button
                           onClick={() => handleEnd(active.id)}
-                          className={`min-h-[36px] px-3 rounded-xl text-xs font-bold transition ${
+                          className={`min-h-[44px] px-3 rounded-xl text-xs font-bold transition duration-150 ease-out active:scale-[0.98] select-none ${
                             timerState === 'overdue'
                               ? 'bg-red-500 hover:bg-red-600 text-white'
                               : timerState === 'warning'
@@ -264,7 +264,7 @@ export default function ComidasClient({ staff, initialBreaks, today }: ComidasCl
                         <button
                           onClick={() => handleStart(member.id)}
                           disabled={isStarting}
-                          className="min-h-[36px] px-3 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white transition disabled:opacity-50"
+                          className="min-h-[44px] px-3 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white transition duration-150 ease-out select-none disabled:opacity-50"
                         >
                           {isStarting ? '...' : '▶ Comer'}
                         </button>

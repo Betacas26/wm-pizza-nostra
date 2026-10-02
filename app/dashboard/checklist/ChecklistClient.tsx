@@ -137,7 +137,7 @@ function HistoryCard({ record }: { record: HistoryRecord }) {
   const allOk = record.checked_items === record.total_items;
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+    <div className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -337,7 +337,7 @@ export default function ChecklistClient({
   const canSubmit = allChecked && !!selectedStaffId && !submitting;
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800">
+    <div className="min-h-screen bg-[#F8F7F4] text-stone-800">
       {/* Header */}
       <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center gap-3 shadow-sm sticky top-0 z-10">
         <Link
@@ -362,23 +362,25 @@ export default function ChecklistClient({
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="bg-white border-b border-stone-200 flex sticky top-[57px] z-10">
-        {(['nueva', 'historial'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`flex-1 py-3 text-sm font-semibold transition border-b-2 capitalize ${
-              activeTab === tab
-                ? 'border-amber-500 text-amber-600'
-                : 'border-transparent text-stone-500 hover:text-stone-700'
-            }`}
-          >
-            {tab === 'historial'
-              ? `Historial${history.length > 0 ? ` (${history.length})` : ''}`
-              : 'Nueva revisión'}
-          </button>
-        ))}
+      {/* Tabs — segmented control */}
+      <div className="bg-white border-b border-stone-200 sticky top-[57px] z-10 px-4 py-2">
+        <div className="p-1 bg-stone-100 rounded-xl flex">
+          {(['nueva', 'historial'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 h-9 rounded-lg text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
+                activeTab === tab
+                  ? 'bg-white text-stone-900 shadow-sm'
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              {tab === 'historial'
+                ? `Historial${history.length > 0 ? ` (${history.length})` : ''}`
+                : 'Nueva revisión'}
+            </button>
+          ))}
+        </div>
       </div>
 
       <main className="p-4 max-w-xl mx-auto space-y-4">
@@ -387,7 +389,7 @@ export default function ChecklistClient({
         {activeTab === 'nueva' && (
           <>
             {/* Selector de área */}
-            <section className="bg-white rounded-2xl border border-stone-200 shadow-sm p-4 space-y-3">
+            <section className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] p-4 space-y-3">
               <h2 className="text-xs font-bold text-stone-400 uppercase tracking-wider">
                 Área
               </h2>
@@ -397,7 +399,7 @@ export default function ChecklistClient({
                     key={area}
                     type="button"
                     onClick={() => setSelectedArea(area)}
-                    className={`min-h-[60px] rounded-xl text-sm font-bold transition flex flex-col items-center justify-center gap-0.5 ${
+                    className={`min-h-[60px] rounded-xl text-sm font-bold transition duration-150 ease-out active:scale-[0.98] select-none flex flex-col items-center justify-center gap-0.5 ${
                       selectedArea === area
                         ? 'bg-amber-500 text-white shadow-sm'
                         : 'bg-stone-100 text-stone-600 hover:bg-amber-50'
@@ -425,7 +427,7 @@ export default function ChecklistClient({
                     key={type}
                     type="button"
                     onClick={() => setSelectedType(type)}
-                    className={`flex-1 min-h-[44px] rounded-xl text-sm font-semibold transition capitalize ${
+                    className={`flex-1 min-h-[44px] rounded-xl text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none capitalize ${
                       selectedType === type
                         ? type === 'apertura'
                           ? 'bg-amber-500 text-white shadow-sm'
@@ -490,7 +492,7 @@ export default function ChecklistClient({
             </div>
 
             {/* Lista de ítems */}
-            <section className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
+            <section className="bg-white rounded-2xl border border-stone-200/70 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
               <ul className="divide-y divide-stone-100">
                 {currentItems.map((item) => {
                   const state = checks.get(item.key) ?? {
@@ -565,11 +567,11 @@ export default function ChecklistClient({
               type="button"
               disabled={!canSubmit}
               onClick={handleSubmit}
-              className={`w-full min-h-[52px] font-bold rounded-xl shadow transition text-sm ${
+              className={`w-full min-h-[52px] font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm ${
                 canSubmit
                   ? selectedType === 'apertura'
-                    ? 'bg-amber-500 hover:bg-amber-600 active:bg-amber-700 text-white'
-                    : 'bg-sky-500 hover:bg-sky-600 active:bg-sky-700 text-white'
+                    ? 'bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-white'
+                    : 'bg-sky-500 hover:bg-sky-600 active:scale-[0.98] text-white'
                   : 'bg-stone-200 text-stone-400 cursor-not-allowed'
               }`}
             >

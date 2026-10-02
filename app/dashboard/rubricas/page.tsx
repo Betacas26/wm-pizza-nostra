@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import RubricasClient, { type StaffMember, type EvaluationRecord, type EvaluationScore } from './RubricasClient';
+import type { CriterionRecord } from './actions';
 
 // ── Tipos de filas de Supabase ───────────────────────────────────────────────
 interface EvalDbRow {
@@ -32,8 +33,8 @@ export default async function RubricasPage() {
   const today = new Date().toISOString().split('T')[0];
   const firstDayOfMonth = today.slice(0, 7) + '-01';
 
-  // Consultas en paralelo: personal activo, mis datos, evaluaciones del mes
-  const [{ data: profilesData }, { data: meData }, { data: evalsData }] =
+  // Consultas en paralelo: personal activo, mis datos, evaluaciones del mes, criterios
+  const [{ data: profilesData }, { data: meData }, { data: evalsData }, { data: criteriaData }] =
     await Promise.all([
       supabase
         .from('profiles')
@@ -54,6 +55,10 @@ export default async function RubricasPage() {
         .gte('eval_date', firstDayOfMonth)
         .lte('eval_date', today)
         .order('eval_date', { ascending: false }),
+      supabase
+        .from('rubric_criteria')
+        .select('id, key, label, description, sort_order')
+        .order('sort_order'),
     ]);
 
   const staff: StaffMember[] = (profilesData ?? []).map(
@@ -104,6 +109,10 @@ export default async function RubricasPage() {
     }),
   );
 
+  const criteria: CriterionRecord[] = (criteriaData ?? []).map(
+    (c: { id: string; key: string; label: string; description: string; sort_order: number }) => c,
+  );
+
   return (
     <RubricasClient
       staff={staff}
@@ -112,6 +121,7 @@ export default async function RubricasPage() {
       evaluatorId={user.id}
       initialMonthEvals={initialMonthEvals}
       today={today}
+      initialCriteria={criteria}
     />
   );
 }

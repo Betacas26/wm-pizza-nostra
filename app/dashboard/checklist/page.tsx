@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import ChecklistClient, { type StaffMember } from './ChecklistClient';
-import type { HistoryRecord, HistoryCheck } from './actions';
+import type { HistoryRecord, HistoryCheck, ChecklistItemRecord } from './actions';
 
 // ── Tipos de filas de Supabase ───────────────────────────────────────────────
 interface ClosingRow {
@@ -43,8 +43,8 @@ export default async function ChecklistPage() {
   const meRole = (meData as { role: string | null } | null)?.role ?? null;
   const isManager = meRole === 'admin' || meRole === 'supervisor';
 
-  // Cargar en paralelo: personal activo + revisiones del día
-  const [{ data: profilesData }, { data: closingsData }] = await Promise.all([
+  // Cargar en paralelo: personal activo + revisiones del día + items de checklist
+  const [{ data: profilesData }, { data: closingsData }, { data: itemsData }] = await Promise.all([
     supabase
       .from('profiles')
       .select('id, name')
@@ -56,6 +56,10 @@ export default async function ChecklistPage() {
       .eq('closing_date', today)
       .not('completed_at', 'is', null)
       .order('completed_at', { ascending: false }),
+    supabase
+      .from('checklist_items')
+      .select('id, area, type, key, label, sort_order')
+      .order('sort_order'),
   ]);
 
   const staff: StaffMember[] = (profilesData ?? []).map(
@@ -106,12 +110,17 @@ export default async function ChecklistPage() {
       checks: checksByClosing.get(c.id) ?? [],
     }));
 
+  const checklistItems: ChecklistItemRecord[] = (itemsData ?? []).map(
+    (i: { id: string; area: string; type: string; key: string; label: string; sort_order: number }) => i,
+  );
+
   return (
     <ChecklistClient
       staff={staff}
       initialHistory={initialHistory}
       today={today}
       isManager={isManager}
+      initialItems={checklistItems}
     />
   );
 }

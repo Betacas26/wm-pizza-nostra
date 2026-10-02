@@ -3,8 +3,14 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
-import type { HistoryRecord, HistoryCheck } from './actions';
-import { submitChecklistAction, deleteChecklistAction } from './actions';
+import type { HistoryRecord, HistoryCheck, ChecklistItemRecord } from './actions';
+import {
+  submitChecklistAction,
+  deleteChecklistAction,
+  createChecklistItemAction,
+  updateChecklistItemAction,
+  deleteChecklistItemAction,
+} from './actions';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 export interface StaffMember {
@@ -248,14 +254,19 @@ export default function ChecklistClient({
   initialHistory,
   today,
   isManager,
+  initialItems,
 }: {
   staff: StaffMember[];
   initialHistory: HistoryRecord[];
   today: string;
   isManager: boolean;
+  initialItems: ChecklistItemRecord[];
 }) {
-  const [activeTab, setActiveTab] = useState<'nueva' | 'historial'>('nueva');
+  const [activeTab, setActiveTab] = useState<'nueva' | 'historial' | 'plantilla'>('nueva');
   const [history, setHistory] = useState<HistoryRecord[]>(initialHistory);
+  const [allItems, setAllItems] = useState<ChecklistItemRecord[]>(
+    initialItems.length > 0 ? initialItems : buildFallbackItems(),
+  );
 
   const [selectedArea, setSelectedArea] = useState<ChecklistArea>('PB');
   const [selectedType, setSelectedType] = useState<ChecklistType>('apertura');
@@ -265,13 +276,16 @@ export default function ChecklistClient({
   const [checks, setChecks] = useState<Map<string, CheckState>>(new Map());
 
   const currentItems = useMemo(
-    () => CHECKLIST[selectedArea][selectedType],
-    [selectedArea, selectedType],
+    () => allItems
+      .filter((i) => i.area === selectedArea && i.type === selectedType)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((i) => ({ key: i.key, label: i.label })),
+    [allItems, selectedArea, selectedType],
   );
 
   useMemo(() => {
     const next = new Map<string, CheckState>(
-      CHECKLIST[selectedArea][selectedType].map((item) => [
+      currentItems.map((item) => [
         item.key,
         { checked: false, checkedAt: null },
       ]),
@@ -382,19 +396,27 @@ export default function ChecklistClient({
       {/* Tabs */}
       <div className="bg-[#151D1A] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
         <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
-          {(['nueva', 'historial'] as const).map((tab) => (
+          {(isManager
+            ? [
+                { key: 'nueva', label: 'Nueva' },
+                { key: 'historial', label: `Historial${history.length > 0 ? ` (${history.length})` : ''}` },
+                { key: 'plantilla', label: 'Plantilla' },
+              ]
+            : [
+                { key: 'nueva', label: 'Nueva revision' },
+                { key: 'historial', label: `Historial${history.length > 0 ? ` (${history.length})` : ''}` },
+              ]
+          ).map((tab) => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as 'nueva' | 'historial' | 'plantilla')}
               className={`flex-1 h-9 rounded-lg text-sm font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
-                activeTab === tab
+                activeTab === tab.key
                   ? 'bg-[#1c2b27] text-[#e6edea] shadow-sm'
                   : 'text-[#7d9990] hover:text-[#e6edea]'
               }`}
             >
-              {tab === 'historial'
-                ? `Historial${history.length > 0 ? ` (${history.length})` : ''}`
-                : 'Nueva revision'}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -614,7 +636,252 @@ export default function ChecklistClient({
             )}
           </>
         )}
+
+        {activeTab === 'plantilla' && isManager && (
+          <ChecklistTemplateManager items={allItems} setItems={setAllItems} />
+        )}
       </main>
+    </div>
+  );
+}
+
+// ── Fallback hardcoded items ───────────────────────────────────────────────────
+function buildFallbackItems(): ChecklistItemRecord[] {
+  const raw: Omit<ChecklistItemRecord, 'id'>[] = [
+    { area:'PB', type:'apertura', key:'pb_ap_1', label:'Limpiar y acomodar mesas y sillas', sort_order:1 },
+    { area:'PB', type:'apertura', key:'pb_ap_2', label:'Colocar manteleria limpia en todas las mesas', sort_order:2 },
+    { area:'PB', type:'apertura', key:'pb_ap_3', label:'Verificar menus (limpios y completos)', sort_order:3 },
+    { area:'PB', type:'apertura', key:'pb_ap_4', label:'Preparar mise en place (sal, pimienta, servilleteros)', sort_order:4 },
+    { area:'PB', type:'apertura', key:'pb_ap_5', label:'Revisar iluminacion y climatizacion', sort_order:5 },
+    { area:'PB', type:'apertura', key:'pb_ap_6', label:'Verificar material de servicio (charolas, platos)', sort_order:6 },
+    { area:'PB', type:'apertura', key:'pb_ap_7', label:'Revisar limpieza de piso y accesos', sort_order:7 },
+    { area:'PB', type:'cierre',   key:'pb_ci_1', label:'Desmantelar mesas y clasificar manteleria sucia', sort_order:1 },
+    { area:'PB', type:'cierre',   key:'pb_ci_2', label:'Limpiar y apilar sillas y mesas', sort_order:2 },
+    { area:'PB', type:'cierre',   key:'pb_ci_3', label:'Barrer y trapear el piso del area', sort_order:3 },
+    { area:'PB', type:'cierre',   key:'pb_ci_4', label:'Recoger y registrar objetos olvidados', sort_order:4 },
+    { area:'PB', type:'cierre',   key:'pb_ci_5', label:'Apagar iluminacion y climatizacion', sort_order:5 },
+    { area:'PB', type:'cierre',   key:'pb_ci_6', label:'Verificar que no queden alimentos ni bebidas', sort_order:6 },
+    { area:'PB', type:'cierre',   key:'pb_ci_7', label:'Reportar incidencias o danos del turno', sort_order:7 },
+    { area:'PA', type:'apertura', key:'pa_ap_1', label:'Limpiar y acomodar mesas y sillas', sort_order:1 },
+    { area:'PA', type:'apertura', key:'pa_ap_2', label:'Colocar manteleria limpia en todas las mesas', sort_order:2 },
+    { area:'PA', type:'apertura', key:'pa_ap_3', label:'Verificar menus (limpios y completos)', sort_order:3 },
+    { area:'PA', type:'apertura', key:'pa_ap_4', label:'Preparar mise en place', sort_order:4 },
+    { area:'PA', type:'apertura', key:'pa_ap_5', label:'Revisar iluminacion y climatizacion', sort_order:5 },
+    { area:'PA', type:'apertura', key:'pa_ap_6', label:'Revisar limpieza de escaleras y accesos', sort_order:6 },
+    { area:'PA', type:'apertura', key:'pa_ap_7', label:'Verificar material de servicio', sort_order:7 },
+    { area:'PA', type:'cierre',   key:'pa_ci_1', label:'Desmantelar mesas y clasificar manteleria sucia', sort_order:1 },
+    { area:'PA', type:'cierre',   key:'pa_ci_2', label:'Limpiar y apilar sillas y mesas', sort_order:2 },
+    { area:'PA', type:'cierre',   key:'pa_ci_3', label:'Barrer y trapear piso y escaleras', sort_order:3 },
+    { area:'PA', type:'cierre',   key:'pa_ci_4', label:'Recoger y registrar objetos olvidados', sort_order:4 },
+    { area:'PA', type:'cierre',   key:'pa_ci_5', label:'Apagar iluminacion y climatizacion', sort_order:5 },
+    { area:'PA', type:'cierre',   key:'pa_ci_6', label:'Verificar que no queden alimentos ni bebidas', sort_order:6 },
+    { area:'PA', type:'cierre',   key:'pa_ci_7', label:'Reportar incidencias o danos del turno', sort_order:7 },
+    { area:'TE', type:'apertura', key:'te_ap_1', label:'Limpiar y acomodar mobiliario de exterior', sort_order:1 },
+    { area:'TE', type:'apertura', key:'te_ap_2', label:'Desplegar y fijar parasoles (verificar estado)', sort_order:2 },
+    { area:'TE', type:'apertura', key:'te_ap_3', label:'Colocar manteleria o individuales en mesas', sort_order:3 },
+    { area:'TE', type:'apertura', key:'te_ap_4', label:'Verificar menus de terraza', sort_order:4 },
+    { area:'TE', type:'apertura', key:'te_ap_5', label:'Preparar mise en place', sort_order:5 },
+    { area:'TE', type:'apertura', key:'te_ap_6', label:'Revisar iluminacion exterior', sort_order:6 },
+    { area:'TE', type:'apertura', key:'te_ap_7', label:'Verificar estado del piso de terraza', sort_order:7 },
+    { area:'TE', type:'cierre',   key:'te_ci_1', label:'Recoger y guardar manteleria o individuales', sort_order:1 },
+    { area:'TE', type:'cierre',   key:'te_ci_2', label:'Plegar y asegurar parasoles', sort_order:2 },
+    { area:'TE', type:'cierre',   key:'te_ci_3', label:'Limpiar y apilar mesas y sillas de exterior', sort_order:3 },
+    { area:'TE', type:'cierre',   key:'te_ci_4', label:'Barrer piso de terraza', sort_order:4 },
+    { area:'TE', type:'cierre',   key:'te_ci_5', label:'Recoger y registrar objetos olvidados', sort_order:5 },
+    { area:'TE', type:'cierre',   key:'te_ci_6', label:'Apagar iluminacion exterior', sort_order:6 },
+    { area:'TE', type:'cierre',   key:'te_ci_7', label:'Reportar incidencias o danos del turno', sort_order:7 },
+    { area:'BA', type:'apertura', key:'ba_ap_1', label:'Revisar limpieza y orden de la barra', sort_order:1 },
+    { area:'BA', type:'apertura', key:'ba_ap_2', label:'Verificar inventario de bebidas y licores', sort_order:2 },
+    { area:'BA', type:'apertura', key:'ba_ap_3', label:'Preparar hielo y verificar hieleras', sort_order:3 },
+    { area:'BA', type:'apertura', key:'ba_ap_4', label:'Revisar herramientas de barra y cristaleria', sort_order:4 },
+    { area:'BA', type:'apertura', key:'ba_ap_5', label:'Verificar cristaleria limpia y sin roturas', sort_order:5 },
+    { area:'BA', type:'apertura', key:'ba_ap_6', label:'Revisar surtidores y conexiones de gas/CO2', sort_order:6 },
+    { area:'BA', type:'apertura', key:'ba_ap_7', label:'Verificar que la terminal de pago funcione', sort_order:7 },
+    { area:'BA', type:'cierre',   key:'ba_ci_1', label:'Limpiar profundamente la superficie de la barra', sort_order:1 },
+    { area:'BA', type:'cierre',   key:'ba_ci_2', label:'Guardar y asegurar licores y bebidas', sort_order:2 },
+    { area:'BA', type:'cierre',   key:'ba_ci_3', label:'Lavar y guardar cristaleria', sort_order:3 },
+    { area:'BA', type:'cierre',   key:'ba_ci_4', label:'Vaciar y limpiar hieleras', sort_order:4 },
+    { area:'BA', type:'cierre',   key:'ba_ci_5', label:'Cerrar surtidores y llaves de gas/CO2', sort_order:5 },
+    { area:'BA', type:'cierre',   key:'ba_ci_6', label:'Limpiar y guardar herramientas de barra', sort_order:6 },
+    { area:'BA', type:'cierre',   key:'ba_ci_7', label:'Reportar incidencias, consumos y faltantes', sort_order:7 },
+  ];
+  return raw.map((r, i) => ({ ...r, id: `fallback_${i}` }));
+}
+
+// ── Checklist Template Manager ────────────────────────────────────────────────
+function ChecklistTemplateManager({
+  items,
+  setItems,
+}: {
+  items: ChecklistItemRecord[];
+  setItems: React.Dispatch<React.SetStateAction<ChecklistItemRecord[]>>;
+}) {
+  const AREAS: ChecklistArea[] = ['PB', 'PA', 'TE', 'BA'];
+  const TYPES: ChecklistType[] = ['apertura', 'cierre'];
+  const [selArea, setSelArea] = useState<ChecklistArea>('PB');
+  const [selType, setSelType] = useState<ChecklistType>('apertura');
+  const [newLabel, setNewLabel] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const visibleItems = useMemo(
+    () => items.filter((i) => i.area === selArea && i.type === selType).sort((a, b) => a.sort_order - b.sort_order),
+    [items, selArea, selType],
+  );
+
+  async function handleAdd() {
+    if (!newLabel.trim() || adding) return;
+    setAdding(true);
+    try {
+      const row = await createChecklistItemAction({ area: selArea, type: selType, label: newLabel.trim() });
+      setItems((prev) => [...prev, row]);
+      setNewLabel('');
+    } catch { /* ignore */ }
+    setAdding(false);
+  }
+
+  async function handleSave(id: string) {
+    if (savingId) return;
+    setSavingId(id);
+    try {
+      await updateChecklistItemAction({ id, label: editLabel.trim() });
+      setItems((prev) => prev.map((i) => i.id === id ? { ...i, label: editLabel.trim() } : i));
+      setEditingId(null);
+    } catch { /* ignore */ }
+    setSavingId(null);
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('¿Eliminar este item?')) return;
+    setDeletingId(id);
+    try {
+      await deleteChecklistItemAction(id);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    } catch { /* ignore */ }
+    setDeletingId(null);
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Area selector */}
+      <div className="grid grid-cols-4 gap-2">
+        {AREAS.map((area) => (
+          <button
+            key={area}
+            type="button"
+            onClick={() => setSelArea(area)}
+            className={`min-h-[48px] rounded-xl text-sm font-bold transition active:scale-[0.98] select-none ${
+              selArea === area
+                ? 'bg-[#7A1D2E] text-white shadow-sm'
+                : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
+            }`}
+          >
+            {area}
+          </button>
+        ))}
+      </div>
+      {/* Type selector */}
+      <div className="flex gap-2">
+        {TYPES.map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => setSelType(type)}
+            className={`flex-1 min-h-[40px] rounded-xl text-sm font-semibold transition active:scale-[0.98] capitalize ${
+              selType === type
+                ? type === 'apertura' ? 'bg-[#7A1D2E] text-white shadow-sm' : 'bg-sky-600 text-white shadow-sm'
+                : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
+            }`}
+          >
+            {type === 'apertura' ? 'Apertura' : 'Cierre'}
+          </button>
+        ))}
+      </div>
+
+      {/* Items list */}
+      <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#223530]">
+          <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
+            {AREA_LABELS[selArea]} — {selType === 'apertura' ? 'Apertura' : 'Cierre'} ({visibleItems.length} items)
+          </h2>
+        </div>
+        {visibleItems.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-[#7d9990] text-center">Sin items. Agrega uno abajo.</p>
+        ) : (
+          <ul className="divide-y divide-[#223530]">
+            {visibleItems.map((item) => (
+              <li key={item.id} className="px-4 py-3">
+                {editingId === item.id ? (
+                  <div className="flex gap-2">
+                    <input
+                      value={editLabel}
+                      onChange={(e) => setEditLabel(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="h-9 px-3 rounded-xl border border-[#223530] text-xs text-[#7d9990] bg-[#1c2b27]"
+                    >
+                      ✕
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSave(item.id)}
+                      disabled={savingId === item.id}
+                      className="h-9 px-3 rounded-xl bg-[#7A1D2E] text-white text-xs font-bold disabled:opacity-50"
+                    >
+                      {savingId === item.id ? '...' : '✓'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <span className="flex-1 text-sm text-[#e6edea]">{item.label}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setEditingId(item.id); setEditLabel(item.label); }}
+                      className="shrink-0 h-8 px-3 rounded-lg border border-[#223530] text-xs text-[#7d9990] hover:text-[#e6edea] bg-[#1c2b27] transition"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(item.id)}
+                      disabled={deletingId === item.id}
+                      className="shrink-0 h-8 px-3 rounded-lg text-xs text-red-400 hover:text-red-300 hover:bg-[#1c2b27] transition disabled:opacity-50"
+                    >
+                      {deletingId === item.id ? '...' : 'Eliminar'}
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Add item */}
+      <div className="bg-[#151D1A] rounded-2xl border border-[#223530] p-4 space-y-3">
+        <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">Agregar item</h2>
+        <input
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E] placeholder:text-[#7d9990]"
+          placeholder={`Item para ${AREA_LABELS[selArea]} ${selType}...`}
+        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!newLabel.trim() || adding}
+          className="w-full min-h-[44px] bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition disabled:opacity-50 select-none text-sm"
+        >
+          {adding ? 'Agregando...' : 'Agregar item'}
+        </button>
+      </div>
     </div>
   );
 }

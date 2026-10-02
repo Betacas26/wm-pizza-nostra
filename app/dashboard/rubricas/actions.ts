@@ -113,6 +113,53 @@ export async function submitEvaluationAction(
   };
 }
 
+// ── Criterion types ───────────────────────────────────────────────────────────
+export interface CriterionRecord {
+  id: string;
+  key: string;
+  label: string;
+  description: string;
+  sort_order: number;
+}
+
+// ── Criterion CRUD ────────────────────────────────────────────────────────────
+export async function createCriterionAction(data: {
+  label: string;
+  description: string;
+}): Promise<CriterionRecord> {
+  await verifyEvaluator();
+  const admin = createAdminClient();
+  const key = `crit_${Date.now()}`;
+  const { data: row, error } = await admin
+    .from('rubric_criteria')
+    .insert({ key, label: data.label, description: data.description, sort_order: 99 })
+    .select()
+    .single();
+  if (error || !row) throw new Error(error?.message ?? 'Error al crear criterio.');
+  return row as CriterionRecord;
+}
+
+export async function updateCriterionAction(data: {
+  id: string;
+  label: string;
+  description: string;
+}): Promise<void> {
+  await verifyEvaluator();
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('rubric_criteria')
+    .update({ label: data.label, description: data.description })
+    .eq('id', data.id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteCriterionAction(id: string): Promise<void> {
+  await verifyEvaluator();
+  const admin = createAdminClient();
+  const { error } = await admin.from('rubric_criteria').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 // ── Delete evaluation ─────────────────────────────────────────────────────────
 export async function deleteEvaluationAction(id: string): Promise<void> {
   const { user } = await verifyEvaluator();

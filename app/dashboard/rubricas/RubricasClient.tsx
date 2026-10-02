@@ -4,8 +4,15 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
-import type { EvaluationRecord, EvaluationScore } from './actions';
-import { submitEvaluationAction, deleteEvaluationAction, updateEvaluationAction } from './actions';
+import type { EvaluationRecord, EvaluationScore, CriterionRecord } from './actions';
+import {
+  submitEvaluationAction,
+  deleteEvaluationAction,
+  updateEvaluationAction,
+  createCriterionAction,
+  updateCriterionAction,
+  deleteCriterionAction,
+} from './actions';
 
 export interface StaffMember {
   id: string;
@@ -14,14 +21,15 @@ export interface StaffMember {
 
 export type { EvaluationRecord, EvaluationScore };
 
-const CRITERIA: { key: string; label: string; description: string }[] = [
-  { key: 'punctuality',   label: 'Puntualidad y asistencia',  description: 'Llegada a tiempo, cumplimiento de horario' },
-  { key: 'presentation',  label: 'Presentacion personal',     description: 'Uniforme, higiene y apariencia' },
-  { key: 'teamwork',      label: 'Trabajo en equipo',         description: 'Colaboracion y apoyo a companeros' },
-  { key: 'service',       label: 'Actitud de servicio',       description: 'Trato al cliente, disposicion y amabilidad' },
-  { key: 'knowledge',     label: 'Conocimiento del puesto',   description: 'Dominio de menu, procesos y herramientas' },
-  { key: 'efficiency',    label: 'Eficiencia en tareas',      description: 'Rapidez, organizacion y calidad del trabajo' },
-  { key: 'situations',    label: 'Manejo de situaciones',     description: 'Respuesta ante quejas, imprevistos y presion' },
+// Criteria loaded from DB — kept as fallback for EvalCard edit mode
+const CRITERIA_FALLBACK: CriterionRecord[] = [
+  { id: '', key: 'punctuality',   label: 'Puntualidad y asistencia',  description: 'Llegada a tiempo, cumplimiento de horario',     sort_order: 1 },
+  { id: '', key: 'presentation',  label: 'Presentacion personal',     description: 'Uniforme, higiene y apariencia',                sort_order: 2 },
+  { id: '', key: 'teamwork',      label: 'Trabajo en equipo',         description: 'Colaboracion y apoyo a companeros',             sort_order: 3 },
+  { id: '', key: 'service',       label: 'Actitud de servicio',       description: 'Trato al cliente, disposicion y amabilidad',    sort_order: 4 },
+  { id: '', key: 'knowledge',     label: 'Conocimiento del puesto',   description: 'Dominio de menu, procesos y herramientas',      sort_order: 5 },
+  { id: '', key: 'efficiency',    label: 'Eficiencia en tareas',      description: 'Rapidez, organizacion y calidad del trabajo',   sort_order: 6 },
+  { id: '', key: 'situations',    label: 'Manejo de situaciones',     description: 'Respuesta ante quejas, imprevistos y presion',  sort_order: 7 },
 ];
 
 const SCORE_BTN_ON: Record<number, string> = {
@@ -101,11 +109,13 @@ interface ScoreDbRow {
 function EvalCard({
   record,
   isManager,
+  criteria,
   onDelete,
   onUpdate,
 }: {
   record: EvaluationRecord;
   isManager: boolean;
+  criteria: CriterionRecord[];
   onDelete: (id: string) => void;
   onUpdate: (updated: EvaluationRecord) => void;
 }) {
@@ -138,7 +148,7 @@ function EvalCard({
   async function handleSave() {
     if (saving) return;
     setSaving(true);
-    const scores: EvaluationScore[] = CRITERIA.map((c) => ({
+    const scores: EvaluationScore[] = criteria.map((c) => ({
       criterion_key: c.key,
       criterion_label: c.label,
       score: editScores.get(c.key) ?? 0,
@@ -231,7 +241,7 @@ function EvalCard({
       {editMode && (
         <div className="border-t border-[#223530] p-4 space-y-3">
           <ul className="space-y-3">
-            {CRITERIA.map((crit) => {
+            {criteria.map((crit) => {
               const score = editScores.get(crit.key) ?? 0;
               return (
                 <li key={crit.key}>
@@ -289,6 +299,7 @@ export default function RubricasClient({
   evaluatorId,
   initialMonthEvals,
   today,
+  initialCriteria,
 }: {
   staff: StaffMember[];
   isManager: boolean;
@@ -296,10 +307,15 @@ export default function RubricasClient({
   evaluatorId: string;
   initialMonthEvals: EvaluationRecord[];
   today: string;
+  initialCriteria: CriterionRecord[];
 }) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [activeTab, setActiveTab] = useState<'nueva' | 'historial'>(
+  const [criteria, setCriteria] = useState<CriterionRecord[]>(
+    initialCriteria.length > 0 ? initialCriteria : CRITERIA_FALLBACK,
+  );
+
+  const [activeTab, setActiveTab] = useState<'nueva' | 'historial' | 'criterios'>(
     isManager ? 'nueva' : 'historial',
   );
 
@@ -318,7 +334,7 @@ export default function RubricasClient({
   }
 
   const scoredCount = [...scores.values()].filter((s) => s > 0).length;
-  const allScored = scoredCount === CRITERIA.length;
+  const allScored = scoredCount === criteria.length;
 
   const average = useMemo(() => {
     const vals = [...scores.values()].filter((s) => s > 0);
@@ -436,7 +452,7 @@ export default function RubricasClient({
 
     const staffName = staff.find((s) => s.id === selectedStaffId)?.name ?? selectedStaffId;
 
-    const scoresPayload: EvaluationScore[] = CRITERIA.map((c) => ({
+    const scoresPayload: EvaluationScore[] = criteria.map((c) => ({
       criterion_key: c.key,
       criterion_label: c.label,
       score: scores.get(c.key) ?? 0,
@@ -472,7 +488,11 @@ export default function RubricasClient({
   const canSubmit = allScored && !!selectedStaffId && !submitting;
 
   const tabs = isManager
-    ? [{ key: 'nueva', label: 'Nueva evaluacion' }, { key: 'historial', label: 'Historial' }]
+    ? [
+        { key: 'nueva', label: 'Nueva' },
+        { key: 'historial', label: 'Historial' },
+        { key: 'criterios', label: 'Criterios' },
+      ]
     : [{ key: 'historial', label: 'Historial' }];
 
   return (
@@ -551,7 +571,7 @@ export default function RubricasClient({
                     Promedio actual
                   </p>
                   <p className="text-xs text-[#7d9990] mt-0.5">
-                    {scoredCount}/{CRITERIA.length} criterios puntuados
+                    {scoredCount}/{criteria.length} criterios puntuados
                   </p>
                 </div>
                 <div className="text-right">
@@ -572,7 +592,7 @@ export default function RubricasClient({
                 </h2>
               </div>
               <ul className="divide-y divide-[#223530]">
-                {CRITERIA.map((crit) => {
+                {criteria.map((crit) => {
                   const score = scores.get(crit.key) ?? 0;
                   return (
                     <li key={crit.key} className="px-4 py-3">
@@ -653,7 +673,7 @@ export default function RubricasClient({
                 : !selectedStaffId
                 ? 'Selecciona un colaborador'
                 : !allScored
-                ? `Faltan ${CRITERIA.length - scoredCount} criterio${CRITERIA.length - scoredCount !== 1 ? 's' : ''}`
+                ? `Faltan ${criteria.length - scoredCount} criterio${criteria.length - scoredCount !== 1 ? 's' : ''}`
                 : 'Guardar evaluacion'}
             </button>
           </>
@@ -723,6 +743,7 @@ export default function RubricasClient({
                       key={record.id}
                       record={record}
                       isManager={isManager}
+                      criteria={criteria}
                       onDelete={(id) => setMonthEvals((prev) => prev.filter((e) => e.id !== id))}
                       onUpdate={(updated) => setMonthEvals((prev) => prev.map((e) => e.id === updated.id ? updated : e))}
                     />
@@ -732,7 +753,175 @@ export default function RubricasClient({
             )}
           </>
         )}
+
+        {/* ── Tab: Criterios ───────────────────────────────────────────── */}
+        {activeTab === 'criterios' && isManager && (
+          <CriteriaManager criteria={criteria} setCriteria={setCriteria} />
+        )}
       </main>
+    </div>
+  );
+}
+
+// ── Criteria Manager ──────────────────────────────────────────────────────────
+function CriteriaManager({
+  criteria,
+  setCriteria,
+}: {
+  criteria: CriterionRecord[];
+  setCriteria: React.Dispatch<React.SetStateAction<CriterionRecord[]>>;
+}) {
+  const [newLabel, setNewLabel] = useState('');
+  const [newDesc, setNewDesc] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  async function handleAdd() {
+    if (!newLabel.trim() || adding) return;
+    setAdding(true);
+    try {
+      const row = await createCriterionAction({ label: newLabel.trim(), description: newDesc.trim() });
+      setCriteria((prev) => [...prev, row]);
+      setNewLabel('');
+      setNewDesc('');
+    } catch { /* ignore */ }
+    setAdding(false);
+  }
+
+  function startEdit(c: CriterionRecord) {
+    setEditingId(c.id);
+    setEditLabel(c.label);
+    setEditDesc(c.description);
+  }
+
+  async function handleSave(id: string) {
+    if (savingId) return;
+    setSavingId(id);
+    try {
+      await updateCriterionAction({ id, label: editLabel.trim(), description: editDesc.trim() });
+      setCriteria((prev) =>
+        prev.map((c) => c.id === id ? { ...c, label: editLabel.trim(), description: editDesc.trim() } : c),
+      );
+      setEditingId(null);
+    } catch { /* ignore */ }
+    setSavingId(null);
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('¿Eliminar este criterio?')) return;
+    setDeletingId(id);
+    try {
+      await deleteCriterionAction(id);
+      setCriteria((prev) => prev.filter((c) => c.id !== id));
+    } catch { /* ignore */ }
+    setDeletingId(null);
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+        <div className="px-4 py-3 border-b border-[#223530]">
+          <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
+            Criterios de evaluacion ({criteria.length})
+          </h2>
+        </div>
+        <ul className="divide-y divide-[#223530]">
+          {criteria.map((c) => (
+            <li key={c.id} className="px-4 py-3">
+              {editingId === c.id ? (
+                <div className="space-y-2">
+                  <input
+                    value={editLabel}
+                    onChange={(e) => setEditLabel(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+                    placeholder="Nombre del criterio"
+                  />
+                  <input
+                    value={editDesc}
+                    onChange={(e) => setEditDesc(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+                    placeholder="Descripcion"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(null)}
+                      className="flex-1 h-9 rounded-xl border border-[#223530] text-xs font-semibold text-[#7d9990] bg-[#1c2b27] hover:text-[#e6edea] transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSave(c.id)}
+                      disabled={savingId === c.id}
+                      className="flex-1 h-9 rounded-xl bg-[#7A1D2E] hover:bg-[#9E2A3E] text-white text-xs font-bold transition disabled:opacity-50"
+                    >
+                      {savingId === c.id ? 'Guardando...' : 'Guardar'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-[#e6edea] text-sm">{c.label}</p>
+                    {c.description && (
+                      <p className="text-xs text-[#7d9990] mt-0.5">{c.description}</p>
+                    )}
+                  </div>
+                  <div className="shrink-0 flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(c)}
+                      className="h-8 px-3 rounded-lg border border-[#223530] text-xs font-semibold text-[#7d9990] hover:text-[#e6edea] bg-[#1c2b27] transition"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDelete(c.id)}
+                      disabled={deletingId === c.id}
+                      className="h-8 px-3 rounded-lg text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-[#1c2b27] transition disabled:opacity-50"
+                    >
+                      {deletingId === c.id ? '...' : 'Eliminar'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Add new criterion */}
+      <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4 space-y-3">
+        <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
+          Agregar criterio
+        </h2>
+        <input
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E] placeholder:text-[#7d9990]"
+          placeholder="Nombre del criterio (ej. Puntualidad)"
+        />
+        <input
+          value={newDesc}
+          onChange={(e) => setNewDesc(e.target.value)}
+          className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E] placeholder:text-[#7d9990]"
+          placeholder="Descripcion (opcional)"
+        />
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={!newLabel.trim() || adding}
+          className="w-full min-h-[44px] bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition disabled:opacity-50 select-none text-sm"
+        >
+          {adding ? 'Agregando...' : 'Agregar criterio'}
+        </button>
+      </div>
     </div>
   );
 }

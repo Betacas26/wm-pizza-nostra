@@ -1,5 +1,6 @@
 'use server';
 
+import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
 
 // ── Tipos compartidos ────────────────────────────────────────────────────────
@@ -134,5 +135,59 @@ export async function deleteChecklistAction(id: string): Promise<void> {
 
   await supabase.from('closing_checks').delete().eq('closing_id', id);
   const { error } = await supabase.from('closings').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// ── Checklist item types ──────────────────────────────────────────────────────
+export interface ChecklistItemRecord {
+  id: string;
+  area: string;
+  type: string;
+  key: string;
+  label: string;
+  sort_order: number;
+}
+
+// ── Checklist item CRUD ───────────────────────────────────────────────────────
+async function verifyManager() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autorizado.');
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  const role = (profile as { role: string | null } | null)?.role ?? null;
+  if (role !== 'admin' && role !== 'supervisor') throw new Error('No autorizado.');
+}
+
+export async function createChecklistItemAction(data: {
+  area: string;
+  type: string;
+  label: string;
+}): Promise<ChecklistItemRecord> {
+  await verifyManager();
+  const admin = createAdminClient();
+  const key = `${data.area.toLowerCase()}_${data.type.slice(0, 2)}_${Date.now()}`;
+  const { data: row, error } = await admin
+    .from('checklist_items')
+    .insert({ area: data.area, type: data.type, key, label: data.label, sort_order: 99 })
+    .select()
+    .single();
+  if (error || !row) throw new Error(error?.message ?? 'Error al crear item.');
+  return row as ChecklistItemRecord;
+}
+
+export async function updateChecklistItemAction(data: {
+  id: string;
+  label: string;
+}): Promise<void> {
+  await verifyManager();
+  const admin = createAdminClient();
+  const { error } = await admin.from('checklist_items').update({ label: data.label }).eq('id', data.id);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteChecklistItemAction(id: string): Promise<void> {
+  await verifyManager();
+  const admin = createAdminClient();
+  const { error } = await admin.from('checklist_items').delete().eq('id', id);
   if (error) throw new Error(error.message);
 }

@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
@@ -35,6 +36,14 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[#0D1211] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
+          <Image
+            src="/icon-512.png"
+            alt="Pizza Nostra"
+            width={100}
+            height={100}
+            className="mx-auto mb-4 rounded-2xl"
+            priority
+          />
           <h1 className="text-2xl font-black text-[#E8899A] tracking-wide">
             WM PIZZA NOSTRA
           </h1>

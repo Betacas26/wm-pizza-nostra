@@ -1,7 +1,6 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 
 // ── Tipos compartidos ────────────────────────────────────────────────────────
 export interface HistoryCheck {
@@ -111,4 +110,29 @@ export async function submitChecklistAction(
     completed_at: completedAt,
     checks: checkRows,
   };
+}
+
+// ── Delete checklist record ───────────────────────────────────────────────────
+export async function deleteChecklistAction(id: string): Promise<void> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('No autorizado.');
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const role = (profile as { role: string | null } | null)?.role ?? null;
+  if (role !== 'admin' && role !== 'supervisor') {
+    throw new Error('No autorizado: se requiere rol admin o supervisor.');
+  }
+
+  await supabase.from('closing_checks').delete().eq('closing_id', id);
+  const { error } = await supabase.from('closings').delete().eq('id', id);
+  if (error) throw new Error(error.message);
 }

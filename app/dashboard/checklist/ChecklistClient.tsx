@@ -2,8 +2,9 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { ChevronLeft } from 'lucide-react';
 import type { HistoryRecord, HistoryCheck } from './actions';
-import { submitChecklistAction } from './actions';
+import { submitChecklistAction, deleteChecklistAction } from './actions';
 
 // ── Tipos ────────────────────────────────────────────────────────────────────
 export interface StaffMember {
@@ -131,9 +132,27 @@ function fmtTime(iso: string): string {
 }
 
 // ── Tarjeta de historial ──────────────────────────────────────────────────────
-function HistoryCard({ record }: { record: HistoryRecord }) {
+function HistoryCard({
+  record,
+  isManager,
+  onDelete,
+}: {
+  record: HistoryRecord;
+  isManager: boolean;
+  onDelete: (id: string) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const allOk = record.checked_items === record.total_items;
+
+  async function handleDelete() {
+    if (!confirm('¿Eliminar esta revision?')) return;
+    setDeleting(true);
+    try {
+      await deleteChecklistAction(record.id);
+      onDelete(record.id);
+    } catch { setDeleting(false); }
+  }
 
   return (
     <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
@@ -177,6 +196,19 @@ function HistoryCard({ record }: { record: HistoryRecord }) {
         </div>
       </button>
 
+      {isManager && (
+        <div className="border-t border-[#223530]">
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="w-full py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-[#1c2b27] transition disabled:opacity-50"
+          >
+            {deleting ? 'Eliminando...' : 'Eliminar revision'}
+          </button>
+        </div>
+      )}
+
       {expanded && record.checks.length > 0 && (
         <ul className="border-t border-[#223530] divide-y divide-[#223530]">
           {record.checks.map((c) => (
@@ -215,10 +247,12 @@ export default function ChecklistClient({
   staff,
   initialHistory,
   today,
+  isManager,
 }: {
   staff: StaffMember[];
   initialHistory: HistoryRecord[];
   today: string;
+  isManager: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<'nueva' | 'historial'>('nueva');
   const [history, setHistory] = useState<HistoryRecord[]>(initialHistory);
@@ -325,10 +359,10 @@ export default function ChecklistClient({
       <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
-          className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
+          className="flex items-center justify-center w-9 h-9 rounded-xl text-[#7d9990] hover:text-[#e6edea] hover:bg-[#1c2b27] transition active:scale-[0.95]"
           aria-label="Volver"
         >
-          &#8592;
+          <ChevronLeft size={22} strokeWidth={2.5} />
         </Link>
         <div className="flex-1 min-w-0">
           <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
@@ -569,7 +603,12 @@ export default function ChecklistClient({
             ) : (
               <div className="space-y-3">
                 {history.map((record) => (
-                  <HistoryCard key={record.id} record={record} />
+                  <HistoryCard
+                    key={record.id}
+                    record={record}
+                    isManager={isManager}
+                    onDelete={(id) => setHistory((prev) => prev.filter((r) => r.id !== id))}
+                  />
                 ))}
               </div>
             )}

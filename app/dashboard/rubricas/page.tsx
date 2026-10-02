@@ -39,6 +39,7 @@ export default async function RubricasPage() {
         .from('profiles')
         .select('id, name')
         .eq('active', true)
+        .in('role', ['mesero', 'ayudante'])
         .order('name'),
       supabase
         .from('profiles')

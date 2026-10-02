@@ -3,8 +3,9 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { ChevronLeft } from 'lucide-react';
 import type { EvaluationRecord, EvaluationScore } from './actions';
-import { submitEvaluationAction } from './actions';
+import { submitEvaluationAction, deleteEvaluationAction, updateEvaluationAction } from './actions';
 
 export interface StaffMember {
   id: string;
@@ -97,31 +98,88 @@ interface ScoreDbRow {
   score: number;
 }
 
-function EvalCard({ record }: { record: EvaluationRecord }) {
+function EvalCard({
+  record,
+  isManager,
+  onDelete,
+  onUpdate,
+}: {
+  record: EvaluationRecord;
+  isManager: boolean;
+  onDelete: (id: string) => void;
+  onUpdate: (updated: EvaluationRecord) => void;
+}) {
   const [expanded, setExpanded] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editScores, setEditScores] = useState<Map<string, number>>(new Map());
+  const [editObs, setEditObs] = useState('');
   const avg = record.average_score;
+
+  function openEdit() {
+    const map = new Map<string, number>();
+    for (const s of record.scores) map.set(s.criterion_key, s.score);
+    setEditScores(map);
+    setEditObs(record.observations ?? '');
+    setEditMode(true);
+    setExpanded(true);
+  }
+
+  function handleEditScore(key: string, val: number) {
+    setEditScores((prev) => { const n = new Map(prev); n.set(key, val); return n; });
+  }
+
+  const editAvg = useMemo(() => {
+    const vals = [...editScores.values()].filter((v) => v > 0);
+    return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  }, [editScores]);
+
+  async function handleSave() {
+    if (saving) return;
+    setSaving(true);
+    const scores: EvaluationScore[] = CRITERIA.map((c) => ({
+      criterion_key: c.key,
+      criterion_label: c.label,
+      score: editScores.get(c.key) ?? 0,
+    }));
+    const avg2 = Math.round(editAvg * 100) / 100;
+    try {
+      await updateEvaluationAction({ id: record.id, average_score: avg2, observations: editObs.trim() || null, scores });
+      onUpdate({ ...record, average_score: avg2, observations: editObs.trim() || null, scores });
+      setEditMode(false);
+    } catch { /* ignore */ }
+    setSaving(false);
+  }
+
+  async function handleDelete() {
+    if (!confirm('¿Eliminar esta evaluación?')) return;
+    setDeleting(true);
+    try {
+      await deleteEvaluationAction(record.id);
+      onDelete(record.id);
+    } catch { setDeleting(false); }
+  }
 
   return (
     <div className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
       <button
         type="button"
-        onClick={() => setExpanded((v) => !v)}
+        onClick={() => { if (!editMode) setExpanded((v) => !v); }}
         className="w-full px-4 py-3 flex items-start gap-3 text-left active:bg-[#1c2b27] transition"
       >
         <div
-          className={`shrink-0 w-12 h-12 rounded-xl flex flex-col items-center justify-center font-black text-xl border ${avgBadgeClass(avg)}`}
+          className={`shrink-0 w-12 h-12 rounded-xl flex flex-col items-center justify-center font-black text-xl border ${avgBadgeClass(editMode ? editAvg : avg)}`}
         >
-          {avg.toFixed(1)}
+          {(editMode ? editAvg : avg).toFixed(1)}
         </div>
 
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-[#e6edea] text-sm truncate">
-            {record.staff_name}
-          </p>
+          <p className="font-bold text-[#e6edea] text-sm truncate">{record.staff_name}</p>
           <p className="text-xs text-[#7d9990] mt-0.5 truncate">
             Evaluado por {record.evaluator_name}
           </p>
-          {record.observations && (
+          {!editMode && record.observations && (
             <p className="text-xs text-[#7d9990] mt-1 truncate italic">
               &ldquo;{record.observations}&rdquo;
             </p>
@@ -130,29 +188,95 @@ function EvalCard({ record }: { record: EvaluationRecord }) {
 
         <div className="shrink-0 text-right">
           <p className="text-xs text-[#7d9990]">{fmtDate(record.eval_date)}</p>
-          <span className={`mt-1 inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${avgBadgeClass(avg)}`}>
-            {avgLabel(avg)}
+          <span className={`mt-1 inline-block text-xs font-semibold px-2 py-0.5 rounded-full border ${avgBadgeClass(editMode ? editAvg : avg)}`}>
+            {avgLabel(editMode ? editAvg : avg)}
           </span>
-          <p className="text-xs text-[#7d9990] mt-1">{expanded ? '▲' : '▼'}</p>
+          {!editMode && <p className="text-xs text-[#7d9990] mt-1">{expanded ? '▲' : '▼'}</p>}
         </div>
       </button>
 
-      {expanded && record.scores.length > 0 && (
+      {isManager && !editMode && (
+        <div className="border-t border-[#223530] flex">
+          <button
+            type="button"
+            onClick={openEdit}
+            className="flex-1 py-2 text-xs font-semibold text-[#7d9990] hover:text-[#e6edea] hover:bg-[#1c2b27] transition border-r border-[#223530]"
+          >
+            Editar
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="flex-1 py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-[#1c2b27] transition disabled:opacity-50"
+          >
+            {deleting ? 'Eliminando...' : 'Eliminar'}
+          </button>
+        </div>
+      )}
+
+      {expanded && !editMode && record.scores.length > 0 && (
         <ul className="border-t border-[#223530] divide-y divide-[#223530]">
           {record.scores.map((s) => (
-            <li
-              key={s.criterion_key}
-              className="flex items-center justify-between px-4 py-2.5 gap-3"
-            >
-              <span className="text-sm text-[#e6edea] flex-1 min-w-0 truncate">
-                {s.criterion_label}
-              </span>
+            <li key={s.criterion_key} className="flex items-center justify-between px-4 py-2.5 gap-3">
+              <span className="text-sm text-[#e6edea] flex-1 min-w-0 truncate">{s.criterion_label}</span>
               <span className={`shrink-0 text-xs font-bold px-2 py-0.5 rounded-full border ${SCORE_BADGE[s.score] ?? 'bg-[#1c2b27] border-[#223530] text-[#7d9990]'}`}>
                 {s.score} — {SCORE_LABEL[s.score]}
               </span>
             </li>
           ))}
         </ul>
+      )}
+
+      {editMode && (
+        <div className="border-t border-[#223530] p-4 space-y-3">
+          <ul className="space-y-3">
+            {CRITERIA.map((crit) => {
+              const score = editScores.get(crit.key) ?? 0;
+              return (
+                <li key={crit.key}>
+                  <p className="text-xs font-semibold text-[#e6edea] mb-1.5">{crit.label}</p>
+                  <div className="flex gap-1.5">
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => handleEditScore(crit.key, n)}
+                        className={`flex-1 h-10 rounded-xl font-black text-base transition active:scale-[0.96] select-none ${score === n ? SCORE_BTN_ON[n] : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990]'}`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <textarea
+            value={editObs}
+            onChange={(e) => setEditObs(e.target.value)}
+            placeholder="Observaciones (opcional)..."
+            rows={2}
+            className="w-full px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#7A1D2E] placeholder:text-[#7d9990]"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setEditMode(false)}
+              className="flex-1 h-10 rounded-xl border border-[#223530] text-xs font-semibold text-[#7d9990] hover:text-[#e6edea] bg-[#1c2b27] transition"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 h-10 rounded-xl bg-[#7A1D2E] hover:bg-[#9E2A3E] text-white text-xs font-bold transition disabled:opacity-50"
+            >
+              {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -357,10 +481,10 @@ export default function RubricasClient({
       <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
-          className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
+          className="flex items-center justify-center w-9 h-9 rounded-xl text-[#7d9990] hover:text-[#e6edea] hover:bg-[#1c2b27] transition active:scale-[0.95]"
           aria-label="Volver"
         >
-          &#8592;
+          <ChevronLeft size={22} strokeWidth={2.5} />
         </Link>
         <div className="flex-1 min-w-0">
           <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
@@ -595,7 +719,13 @@ export default function RubricasClient({
 
                 <div className="space-y-3">
                   {monthEvals.map((record) => (
-                    <EvalCard key={record.id} record={record} />
+                    <EvalCard
+                      key={record.id}
+                      record={record}
+                      isManager={isManager}
+                      onDelete={(id) => setMonthEvals((prev) => prev.filter((e) => e.id !== id))}
+                      onUpdate={(updated) => setMonthEvals((prev) => prev.map((e) => e.id === updated.id ? updated : e))}
+                    />
                   ))}
                 </div>
               </>

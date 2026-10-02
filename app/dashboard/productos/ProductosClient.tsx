@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
+import { ChevronLeft } from 'lucide-react';
 import { createProductAction, toggleProductAction, deleteProductAction } from './actions';
 import type { ProductRecord } from './actions';
 
@@ -93,10 +94,10 @@ export default function ProductosClient({
       <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)] sticky top-0 z-10">
         <Link
           href="/dashboard"
-          className="text-[#7d9990] hover:text-[#e6edea] text-xl leading-none"
+          className="flex items-center justify-center w-9 h-9 rounded-xl text-[#7d9990] hover:text-[#e6edea] hover:bg-[#1c2b27] transition active:scale-[0.95]"
           aria-label="Volver"
         >
-          &#8592;
+          <ChevronLeft size={22} strokeWidth={2.5} />
         </Link>
         <div className="flex-1 min-w-0">
           <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">

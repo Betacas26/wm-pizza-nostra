@@ -2,7 +2,6 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 
 // ── Tipos compartidos ────────────────────────────────────────────────────────
 export interface EvaluationScore {
@@ -112,4 +111,50 @@ export async function submitEvaluationAction(
     observations: data.observations,
     scores: data.scores,
   };
+}
+
+// ── Delete evaluation ─────────────────────────────────────────────────────────
+export async function deleteEvaluationAction(id: string): Promise<void> {
+  const { user } = await verifyEvaluator();
+  const admin = createAdminClient();
+
+  // Delete scores first (cascade may not be set)
+  await admin.from('evaluation_scores').delete().eq('evaluation_id', id);
+  const { error } = await admin.from('evaluations').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
+// ── Update evaluation ─────────────────────────────────────────────────────────
+export interface UpdateEvalData {
+  id: string;
+  average_score: number;
+  observations: string | null;
+  scores: EvaluationScore[];
+}
+
+export async function updateEvaluationAction(
+  data: UpdateEvalData,
+): Promise<void> {
+  await verifyEvaluator();
+  const admin = createAdminClient();
+
+  const { error: evalError } = await admin
+    .from('evaluations')
+    .update({ average_score: data.average_score, observations: data.observations })
+    .eq('id', data.id);
+  if (evalError) throw new Error(evalError.message);
+
+  // Replace scores: delete old, insert new
+  await admin.from('evaluation_scores').delete().eq('evaluation_id', data.id);
+  if (data.scores.length > 0) {
+    const { error: scoresError } = await admin.from('evaluation_scores').insert(
+      data.scores.map((s) => ({
+        evaluation_id: data.id,
+        criterion_key: s.criterion_key,
+        criterion_label: s.criterion_label,
+        score: s.score,
+      })),
+    );
+    if (scoresError) throw new Error(scoresError.message);
+  }
 }

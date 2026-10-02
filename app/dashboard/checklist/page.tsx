@@ -34,6 +34,15 @@ export default async function ChecklistPage() {
 
   const today = new Date().toISOString().split('T')[0];
 
+  const { data: meData } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  const meRole = (meData as { role: string | null } | null)?.role ?? null;
+  const isManager = meRole === 'admin' || meRole === 'supervisor';
+
   // Cargar en paralelo: personal activo + revisiones del día
   const [{ data: profilesData }, { data: closingsData }] = await Promise.all([
     supabase
@@ -102,6 +111,7 @@ export default async function ChecklistPage() {
       staff={staff}
       initialHistory={initialHistory}
       today={today}
+      isManager={isManager}
     />
   );
 }

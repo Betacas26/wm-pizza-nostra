@@ -17,7 +17,7 @@ export default async function BarraPage() {
     .single();
 
   const role = (profile as { role: string | null } | null)?.role ?? '';
-  if (role !== 'admin' && role !== 'encargado_barra') {
+  if (role !== 'admin' && role !== 'encargado_barra' && role !== 'supervisor') {
     redirect('/dashboard');
   }
 

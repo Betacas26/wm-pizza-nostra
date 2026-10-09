@@ -51,8 +51,8 @@ async function assertBarraRole(): Promise<string> {
     .single();
 
   const role = (profile as { role: string | null } | null)?.role ?? '';
-  if (role !== 'admin' && role !== 'encargado_barra') {
-    throw new Error('Acceso denegado: se requiere rol de barra o admin.');
+  if (role !== 'admin' && role !== 'encargado_barra' && role !== 'supervisor') {
+    throw new Error('Acceso denegado: se requiere rol de barra, supervisor o admin.');
   }
   return user.id;
 }

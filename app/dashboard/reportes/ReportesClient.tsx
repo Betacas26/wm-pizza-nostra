@@ -78,6 +78,27 @@ interface StaffSanctionSummary {
   count: number;
 }
 
+interface BarDiarioRow {
+  inventory_date: string;
+  shift: string;
+  snapshot_type: string;
+  inventory_id: string;
+  product_name: string;
+  category: string;
+  bottle_ml: number;
+  closed_bottles: number;
+  open_fraction: number;
+}
+
+interface BarConsumedProduct {
+  inventory_id: string;
+  product_name: string;
+  category: string;
+  bottle_ml: number;
+  total_bottles: number;
+  total_liters: number;
+}
+
 interface BarItem {
   id: string;
   product_name: string;
@@ -165,6 +186,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   // Barra state
   const [barInventory, setBarInventory] = useState<BarItem[]>([]);
   const [barMermas, setBarMermas] = useState<BarMerma[]>([]);
+  const [barDiario, setBarDiario] = useState<BarDiarioRow[]>([]);
   const [barLoading, setBarLoading] = useState(false);
 
   const loadData = useCallback(
@@ -253,12 +275,14 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     async (from: string, to: string) => {
       setBarLoading(true);
       try {
-        const [{ data: inv }, { data: mermas }] = await Promise.all([
+        const [{ data: inv }, { data: mermas }, { data: diario }] = await Promise.all([
           supabase.from('bar_inventory').select('id, product_name, category, unit, stock, min_stock').order('category').order('product_name'),
           supabase.from('bar_mermas').select('id, product_name, quantity, reason, shift_date').gte('shift_date', from).lte('shift_date', to).order('shift_date', { ascending: false }),
+          supabase.from('bar_daily_inventory').select('inventory_date, shift, snapshot_type, inventory_id, product_name, category, bottle_ml, closed_bottles, open_fraction').gte('inventory_date', from).lte('inventory_date', to),
         ]);
         setBarInventory((inv ?? []) as BarItem[]);
         setBarMermas((mermas ?? []) as BarMerma[]);
+        setBarDiario((diario ?? []) as BarDiarioRow[]);
       } catch {
         // Tables may not exist — fail silently
       }
@@ -408,6 +432,62 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     sanciones: r2(staffSanctionSummaries.reduce((a, s) => a + s.sanciones, 0)),
     balance: r2(staffSanctionSummaries.reduce((a, s) => a + s.balance, 0)),
   }), [staffSanctionSummaries]);
+
+  // ── Derived: bar consumption ────────────────────────────────────────────────
+  const barConsumedProducts = useMemo((): BarConsumedProduct[] => {
+    type EntryMap = Map<string, { closed_bottles: number; open_fraction: number; product_name: string; category: string; bottle_ml: number }>;
+    const byShift = new Map<string, { inicial: EntryMap; arrastre: EntryMap }>();
+
+    for (const row of barDiario) {
+      const key = `${row.inventory_date}|${row.shift}`;
+      if (!byShift.has(key)) byShift.set(key, { inicial: new Map(), arrastre: new Map() });
+      const sd = byShift.get(key)!;
+      const target = row.snapshot_type === 'inicial' ? sd.inicial : sd.arrastre;
+      target.set(row.inventory_id, {
+        closed_bottles: Number(row.closed_bottles),
+        open_fraction: Number(row.open_fraction),
+        product_name: row.product_name,
+        category: row.category,
+        bottle_ml: Number(row.bottle_ml),
+      });
+    }
+
+    const productMap = new Map<string, BarConsumedProduct>();
+    for (const sd of byShift.values()) {
+      if (sd.inicial.size === 0 || sd.arrastre.size === 0) continue;
+      const allIds = new Set([...sd.inicial.keys(), ...sd.arrastre.keys()]);
+      for (const id of allIds) {
+        const ini = sd.inicial.get(id);
+        const arr = sd.arrastre.get(id);
+        const iniT = ini ? ini.closed_bottles + ini.open_fraction : 0;
+        const arrT = arr ? arr.closed_bottles + arr.open_fraction : 0;
+        const consumed = Math.max(0, iniT - arrT);
+        if (consumed === 0) continue;
+        const meta = ini ?? arr!;
+        const liters = r2(consumed * (meta.bottle_ml / 1000));
+        const ex = productMap.get(id);
+        if (ex) {
+          ex.total_bottles = r2(ex.total_bottles + consumed);
+          ex.total_liters = r2(ex.total_liters + liters);
+        } else {
+          productMap.set(id, {
+            inventory_id: id,
+            product_name: meta.product_name,
+            category: meta.category,
+            bottle_ml: meta.bottle_ml,
+            total_bottles: r2(consumed),
+            total_liters: liters,
+          });
+        }
+      }
+    }
+    return [...productMap.values()].sort((a, b) => b.total_bottles - a.total_bottles);
+  }, [barDiario]);
+
+  const barConsumedCategories = useMemo(
+    () => Array.from(new Set(barConsumedProducts.map((p) => p.category))),
+    [barConsumedProducts],
+  );
 
   // ── CSV Export ──────────────────────────────────────────────────────────────
   function handleExportCSV() {
@@ -1004,6 +1084,51 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                   <div className="text-center py-12 text-[#7d9990] text-sm">Cargando barra...</div>
                 ) : (
                   <>
+                    {/* Consumption from bar_daily_inventory */}
+                    <div>
+                      <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 mb-1.5">
+                        Consumo del periodo (Inicial → Arrastre)
+                      </p>
+                      {barConsumedProducts.length === 0 ? (
+                        <div className="bg-[#151D1A] border border-[#223530] rounded-2xl px-4 py-6 text-center text-sm text-[#7d9990]">
+                          Sin pares Inicial/Arrastre completos en este periodo.
+                        </div>
+                      ) : (
+                        <>
+                          {barConsumedCategories.map((cat) => {
+                            const items = barConsumedProducts.filter((p) => p.category === cat);
+                            const maxBtl = Math.max(...items.map((p) => p.total_bottles), 0.01);
+                            return (
+                              <div key={cat} className="mb-2">
+                                <p className="text-[10px] text-[#7d9990] capitalize px-1 mb-1">{cat}</p>
+                                <div className="bg-[#151D1A] rounded-2xl border border-[#223530] divide-y divide-[#223530] overflow-hidden">
+                                  {items.map((p) => (
+                                    <div key={p.inventory_id} className="px-4 py-2.5">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <p className="flex-1 font-semibold text-sm text-[#e6edea] truncate">{p.product_name}</p>
+                                        <span className="text-[10px] text-[#7d9990] bg-[#1c2b27] px-1.5 py-0.5 rounded shrink-0">{p.bottle_ml}ml</span>
+                                        <div className="shrink-0 text-right">
+                                          <p className="font-mono font-bold text-sm text-[#F5C2CB]">
+                                            {p.total_bottles % 1 === 0 ? p.total_bottles.toFixed(0) : p.total_bottles.toFixed(2)} bot.
+                                          </p>
+                                          <p className="text-[10px] text-[#7d9990]">
+                                            {p.total_liters % 1 === 0 ? p.total_liters.toFixed(0) : p.total_liters.toFixed(2)} L
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <div className="h-1 bg-[#1c2b27] rounded-full overflow-hidden">
+                                        <div className="h-full bg-[#7A1D2E] rounded-full" style={{ width: `${(p.total_bottles / maxBtl) * 100}%` }} />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </>
+                      )}
+                    </div>
+
                     {/* Inventory */}
                     <div>
                       <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 mb-1.5">

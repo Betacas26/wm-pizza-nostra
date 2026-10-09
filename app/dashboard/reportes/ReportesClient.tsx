@@ -838,7 +838,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     if (tab === 'general') {
       exportCSV(
         [
-          ['Mesero', 'Cierres', 'Total Ventas', 'Aporte', 'A Entregar', 'Propina Cap.', 'Sancion'],
+          ['Mesero', 'Cierres', 'Total Ventas', 'Cuota 5%', 'A Entregar', 'Propina Cap.', 'Sancion'],
           ...staffSummaries.map((s) => [s.name, String(s.count), fmtMXN(s.total), fmtMXN(s.contribution), fmtMXN(s.to_deliver), fmtMXN(s.captain_tip), fmtMXN(s.sanction_amount)]),
           ['TOTAL', String(grandTotals.count), fmtMXN(grandTotals.total), fmtMXN(grandTotals.contribution), fmtMXN(grandTotals.to_deliver), fmtMXN(grandTotals.captain_tip), fmtMXN(grandTotals.sanction_amount)],
         ],
@@ -1106,8 +1106,8 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                             <span className="font-semibold text-[#e6edea]">{fmtMXN(s.total)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-[#7d9990]">Aporte</span>
-                            <span className="font-semibold text-[#e6edea]">{fmtMXN(s.contribution)}</span>
+                            <span className="text-[#7d9990]">Cuota 5%</span>
+                            <span className="font-semibold text-emerald-400">{fmtMXN(s.contribution)}</span>
                           </div>
                           <div className="flex justify-between col-span-2 border-t border-[#223530] pt-1 mt-0.5">
                             <span className="font-bold text-[#e6edea]">A entregar</span>

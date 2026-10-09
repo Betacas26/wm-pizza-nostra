@@ -14,7 +14,16 @@ import {
   CalendarDays,
   BarChart2,
 } from 'lucide-react';
-import { updateInventoryStockAction, updateInventoryMinStockAction, updateInventoryBottleMlAction, updateInventoryProductNameAction, updateInventoryCategoryUnitAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
+import {
+  updateInventoryStockAction,
+  updateInventoryMinStockAction,
+  updateInventoryBottleMlAction,
+  updateInventoryProductNameAction,
+  updateInventoryCategoryUnitAction,
+  recordMermaAction,
+  addInventoryProductAction,
+  deleteInventoryProductAction,
+} from './actions';
 
 export interface InventoryItem {
   id: string;
@@ -46,26 +55,30 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-MX', {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Mexico_City',
   });
 }
 
-const CARD =
-  'bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)]';
+const CARD = 'bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)]';
+const INPUT = 'w-full bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B]';
 
 export default function BarraClient({ inventory: initInventory, mermasHoy: initMermas, today }: Props) {
   const [tab, setTab] = useState(0);
   const [inventory, setInventory] = useState<InventoryItem[]>(initInventory);
   const [mermas, setMermas] = useState<MermaRecord[]>(initMermas);
-  const [saving, setSaving] = useState<string | null>(null);
 
-  // Merma form state
+  // Ingresado / Salida per product
+  const [adjusting, setAdjusting] = useState<string | null>(null);
+  const [adjustments, setAdjustments] = useState<Record<string, { ingresado: string; salida: string }>>({});
+
+  // Merma form
   const [mermaProductId, setMermaProductId] = useState('');
   const [mermaQty, setMermaQty] = useState('');
   const [mermaReason, setMermaReason] = useState(REASONS[0]);
   const [mermaSubmitting, setMermaSubmitting] = useState(false);
   const [mermaError, setMermaError] = useState('');
 
-  // Add product form state
+  // Add product form
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState('');
   const [addCategory, setAddCategory] = useState('licores');
@@ -77,42 +90,42 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
   const [addError, setAddError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  // Edit min_stock state
+  // Inline edit states
   const [editingMinId, setEditingMinId] = useState<string | null>(null);
   const [editingMinValue, setEditingMinValue] = useState('');
-
-  // Edit product name state
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [editingNameValue, setEditingNameValue] = useState('');
-
-  // Edit category/unit state
   const [editingMetaId, setEditingMetaId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState('');
   const [editingUnit, setEditingUnit] = useState('');
-
-  // Edit bottle_ml state
   const [editingMlId, setEditingMlId] = useState<string | null>(null);
   const [editingMlValue, setEditingMlValue] = useState('');
 
   const lowStock = inventory.filter((i) => i.stock < i.min_stock);
 
-  async function handleDelta(item: InventoryItem, delta: number) {
-    if (saving === item.id) return;
-    const newStock = Math.max(0, parseFloat((item.stock + delta).toFixed(2)));
-    // Optimistic update
-    setInventory((prev) =>
-      prev.map((i) => (i.id === item.id ? { ...i, stock: newStock } : i)),
-    );
-    setSaving(item.id);
+  function setAdj(id: string, field: 'ingresado' | 'salida', value: string) {
+    setAdjustments((prev) => ({
+      ...prev,
+      [id]: { ...{ ingresado: '', salida: '' }, ...prev[id], [field]: value },
+    }));
+  }
+
+  async function handleAdjust(item: InventoryItem) {
+    const adj = adjustments[item.id];
+    const ingresado = parseFloat(adj?.ingresado || '0') || 0;
+    const salida = parseFloat(adj?.salida || '0') || 0;
+    if (ingresado === 0 && salida === 0) return;
+    const newStock = Math.max(0, parseFloat((item.stock + ingresado - salida).toFixed(2)));
+
+    setInventory((prev) => prev.map((i) => (i.id === item.id ? { ...i, stock: newStock } : i)));
+    setAdjustments((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
+    setAdjusting(item.id);
     try {
       await updateInventoryStockAction(item.id, newStock);
     } catch {
-      // Revert on error
-      setInventory((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...i, stock: item.stock } : i)),
-      );
+      setInventory((prev) => prev.map((i) => (i.id === item.id ? { ...i, stock: item.stock } : i)));
     } finally {
-      setSaving(null);
+      setAdjusting(null);
     }
   }
 
@@ -126,7 +139,6 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
     }
     const product = inventory.find((i) => i.id === mermaProductId);
     if (!product) return;
-
     setMermaSubmitting(true);
     try {
       const newMerma = await recordMermaAction({
@@ -136,7 +148,6 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
         reason: mermaReason,
       });
       setMermas((prev) => [newMerma, ...prev]);
-      // Also reduce local inventory
       setInventory((prev) =>
         prev.map((i) =>
           i.id === mermaProductId
@@ -163,7 +174,6 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
     if (isNaN(minStock) || minStock < 0) { setAddError('Stock mínimo inválido.'); return; }
     const bottleMl = parseInt(addBottleMl, 10);
     if (isNaN(bottleMl) || bottleMl <= 0) { setAddError('Mililitros inválidos.'); return; }
-
     setAddSubmitting(true);
     try {
       const newItem = await addInventoryProductAction({
@@ -188,14 +198,13 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
   }
 
   async function handleSaveMeta(item: InventoryItem) {
-    const prevCat = item.category;
-    const prevUnit = item.unit;
+    const prev = { category: item.category, unit: item.unit };
     setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, category: editingCategory, unit: editingUnit } : i));
     setEditingMetaId(null);
     try {
       await updateInventoryCategoryUnitAction(item.id, editingCategory, editingUnit);
     } catch {
-      setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, category: prevCat, unit: prevUnit } : i));
+      setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, ...prev } : i));
     }
   }
 
@@ -251,7 +260,6 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
     }
   }
 
-  // Group inventory by category
   const categories = Array.from(new Set(inventory.map((i) => i.category)));
 
   return (
@@ -267,9 +275,7 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
         </Link>
         <Image src="/icon-512.png" alt="" width={28} height={28} className="rounded-lg shrink-0" />
         <div className="flex-1 min-w-0">
-          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
-            Barra
-          </h1>
+          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">Barra</h1>
           <p className="text-xs text-[#7d9990]">
             {today}
             {lowStock.length > 0 && (
@@ -281,7 +287,7 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
         </div>
       </header>
 
-      {/* Low stock alert banner */}
+      {/* Low stock alert */}
       {lowStock.length > 0 && (
         <div className="mx-3 mt-3 flex items-start gap-2 bg-amber-950/50 border border-amber-700/60 rounded-xl px-3 py-2.5">
           <AlertTriangle size={16} strokeWidth={2} className="text-amber-400 shrink-0 mt-0.5" />
@@ -292,7 +298,7 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
         </div>
       )}
 
-      {/* Diario + Reportes shortcuts */}
+      {/* Shortcuts */}
       <div className="px-3 pt-3 flex gap-2">
         <Link
           href="/dashboard/barra/diario"
@@ -324,9 +330,7 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
               key={label}
               onClick={() => setTab(i)}
               className={`flex-1 h-9 rounded-lg text-xs font-semibold transition duration-150 ease-out active:scale-[0.98] select-none flex items-center justify-center gap-1.5 ${
-                tab === i
-                  ? 'bg-[#7A1D2E] text-white shadow-sm'
-                  : 'text-[#7d9990] hover:text-[#e6edea]'
+                tab === i ? 'bg-[#7A1D2E] text-white shadow-sm' : 'text-[#7d9990] hover:text-[#e6edea]'
               }`}
             >
               {i === 0 ? <Package size={13} strokeWidth={2} /> : <ClipboardList size={13} strokeWidth={2} />}
@@ -352,9 +356,7 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
             ) : (
               <div className={`${CARD} p-4`}>
                 <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
-                    Nuevo producto
-                  </p>
+                  <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">Nuevo producto</p>
                   <button onClick={() => { setShowAddForm(false); setAddError(''); }} className="text-[#7d9990] hover:text-[#e6edea] transition">
                     <X size={16} strokeWidth={2} />
                   </button>
@@ -365,33 +367,23 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
                     placeholder="Nombre del producto *"
                     value={addName}
                     onChange={(e) => setAddName(e.target.value)}
-                    className="w-full bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] placeholder:text-[#4a6560]"
+                    className={INPUT}
                   />
                   <div className="flex gap-2">
-                    <select
-                      value={addCategory}
-                      onChange={(e) => setAddCategory(e.target.value)}
-                      className="flex-1 bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] appearance-none"
-                    >
-                      {['licores','cervezas','vinos','refrescos','mixers','otros'].map((c) => (
+                    <select value={addCategory} onChange={(e) => setAddCategory(e.target.value)} className={`${INPUT} flex-1 appearance-none`}>
+                      {['licores', 'cervezas', 'vinos', 'refrescos', 'mixers', 'otros'].map((c) => (
                         <option key={c} value={c}>{c}</option>
                       ))}
                     </select>
-                    <select
-                      value={addUnit}
-                      onChange={(e) => setAddUnit(e.target.value)}
-                      className="flex-1 bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] appearance-none"
-                    >
-                      {['botellas','cajas','piezas','litros','kg','latas'].map((u) => (
+                    <select value={addUnit} onChange={(e) => setAddUnit(e.target.value)} className={`${INPUT} flex-1 appearance-none`}>
+                      {['botellas', 'cajas', 'piezas', 'litros', 'kg', 'latas'].map((u) => (
                         <option key={u} value={u}>{u}</option>
                       ))}
                     </select>
                   </div>
-                  {/* Bottle ml selector */}
+                  {/* Bottle ml */}
                   <div>
-                    <label className="block text-[10px] text-[#7d9990] mb-1.5 uppercase tracking-wider">
-                      Mililitros por botella
-                    </label>
+                    <label className="block text-[10px] text-[#7d9990] mb-1.5 uppercase tracking-wider">Mililitros por botella</label>
                     <div className="flex gap-1.5 flex-wrap">
                       {[200, 375, 500, 700, 750, 1000, 1750].map((ml) => (
                         <button
@@ -403,43 +395,26 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
                               ? 'bg-[#7A1D2E] text-white border border-[#9E2A3E]/60'
                               : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
                           }`}
-                        >
-                          {ml}ml
-                        </button>
+                        >{ml}ml</button>
                       ))}
                       <input
                         type="number"
                         min="1"
                         placeholder="Otro"
-                        value={[200,375,500,700,750,1000,1750].includes(parseInt(addBottleMl)) ? '' : addBottleMl}
+                        value={[200, 375, 500, 700, 750, 1000, 1750].includes(parseInt(addBottleMl)) ? '' : addBottleMl}
                         onChange={(e) => setAddBottleMl(e.target.value)}
                         className="w-20 h-8 bg-[#0a0f0e] border border-[#223530] rounded-lg px-2 text-xs text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] placeholder:text-[#4a6560]"
                       />
                     </div>
                   </div>
-
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <label className="block text-[10px] text-[#7d9990] mb-1 uppercase tracking-wider">Stock inicial</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.25"
-                        value={addStock}
-                        onChange={(e) => setAddStock(e.target.value)}
-                        className="w-full bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B]"
-                      />
+                      <input type="number" min="0" step="0.25" value={addStock} onChange={(e) => setAddStock(e.target.value)} className={INPUT} />
                     </div>
                     <div className="flex-1">
                       <label className="block text-[10px] text-[#7d9990] mb-1 uppercase tracking-wider">Stock mínimo</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.25"
-                        value={addMinStock}
-                        onChange={(e) => setAddMinStock(e.target.value)}
-                        className="w-full bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B]"
-                      />
+                      <input type="number" min="0" step="0.25" value={addMinStock} onChange={(e) => setAddMinStock(e.target.value)} className={INPUT} />
                     </div>
                   </div>
                   {addError && <p className="text-xs text-red-400">{addError}</p>}
@@ -455,228 +430,193 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
             )}
 
             {inventory.length === 0 ? (
-              <div className="text-center py-12 text-[#7d9990] text-sm">
-                Sin productos en inventario.
-              </div>
+              <div className="text-center py-12 text-[#7d9990] text-sm">Sin productos en inventario.</div>
             ) : (
               categories.map((cat) => {
                 const items = inventory.filter((i) => i.category === cat);
                 return (
                   <div key={cat}>
-                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 mb-1.5">
+                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 mb-1.5 flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#7A1D2E]" />
                       {cat}
                     </p>
                     <div className="space-y-2">
                       {items.map((item) => {
-                        const isSaving = saving === item.id;
+                        const isAdjusting = adjusting === item.id;
                         const isLow = item.stock < item.min_stock;
+                        const adj = adjustments[item.id];
+                        const ingresado = parseFloat(adj?.ingresado || '0') || 0;
+                        const salida = parseFloat(adj?.salida || '0') || 0;
+                        const hasAdj = ingresado !== 0 || salida !== 0;
+                        const newStock = Math.max(0, parseFloat((item.stock + ingresado - salida).toFixed(2)));
+
                         return (
-                          <div key={item.id} className={`${CARD} px-4 py-3`}>
-                            <div className="flex items-center gap-3">
-                              {/* Info */}
+                          <div key={item.id} className={`${CARD} p-4`}>
+                            {/* Name + delete */}
+                            <div className="flex items-start gap-2 mb-1">
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  {editingNameId === item.id ? (
-                                    <form
-                                      onSubmit={(e) => { e.preventDefault(); handleSaveProductName(item); }}
-                                      className="flex items-center gap-1 flex-1 min-w-0"
-                                    >
-                                      <input
-                                        type="text"
-                                        autoFocus
-                                        value={editingNameValue}
-                                        onChange={(e) => setEditingNameValue(e.target.value)}
-                                        className="flex-1 min-w-0 bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-sm text-[#e6edea] focus:outline-none"
-                                      />
-                                      <button type="submit" className="text-[11px] font-bold text-emerald-400 px-1 shrink-0">✓</button>
-                                      <button type="button" onClick={() => setEditingNameId(null)} className="text-[11px] text-[#7d9990] px-1 shrink-0">✕</button>
-                                    </form>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditingNameId(item.id); setEditingNameValue(item.product_name); }}
-                                      className="font-semibold text-sm text-[#e6edea] leading-tight truncate hover:text-[#E8899A] transition text-left"
-                                    >
-                                      {item.product_name}
-                                    </button>
-                                  )}
-                                  {editingNameId !== item.id && (
-                                    <button
-                                      onClick={() => handleDeleteProduct(item.id, item.product_name)}
-                                      disabled={deletingId === item.id}
-                                      className="shrink-0 text-[#7d9990] hover:text-red-400 transition disabled:opacity-30"
-                                      aria-label="Eliminar producto"
-                                    >
-                                      <Trash2 size={12} strokeWidth={2} />
-                                    </button>
-                                  )}
-                                </div>
-                                {/* Category / Unit inline edit */}
-                                <div className="mt-0.5">
-                                  {editingMetaId === item.id ? (
-                                    <form
-                                      onSubmit={(e) => { e.preventDefault(); handleSaveMeta(item); }}
-                                      className="flex items-center gap-1 flex-wrap"
-                                    >
-                                      <select
-                                        value={editingCategory}
-                                        onChange={(e) => setEditingCategory(e.target.value)}
-                                        autoFocus
-                                        className="bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-[10px] text-[#e6edea] focus:outline-none"
-                                      >
-                                        {['licores','cervezas','vinos','refrescos','mixers','otros'].map((c) => (
-                                          <option key={c} value={c}>{c}</option>
-                                        ))}
-                                      </select>
-                                      <select
-                                        value={editingUnit}
-                                        onChange={(e) => setEditingUnit(e.target.value)}
-                                        className="bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-[10px] text-[#e6edea] focus:outline-none"
-                                      >
-                                        {['botellas','cajas','piezas','litros','kg','latas'].map((u) => (
-                                          <option key={u} value={u}>{u}</option>
-                                        ))}
-                                      </select>
-                                      <button type="submit" className="text-[10px] font-bold text-emerald-400 px-1">✓</button>
-                                      <button type="button" onClick={() => setEditingMetaId(null)} className="text-[10px] text-[#7d9990] px-1">✕</button>
-                                    </form>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditingMetaId(item.id); setEditingCategory(item.category); setEditingUnit(item.unit); }}
-                                      className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2"
-                                    >
-                                      {item.category} · {item.unit}
-                                    </button>
-                                  )}
-                                </div>
-
-                                {/* Bottle ml inline edit */}
-                                <div className="mt-0.5">
-                                  {editingMlId === item.id ? (
-                                    <form
-                                      onSubmit={(e) => { e.preventDefault(); handleSaveBottleMl(item); }}
-                                      className="flex items-center gap-1 flex-wrap"
-                                    >
-                                      {[200,375,500,700,750,1000,1750].map((ml) => (
-                                        <button
-                                          key={ml}
-                                          type="button"
-                                          onClick={() => setEditingMlValue(String(ml))}
-                                          className={`h-6 px-2 rounded-md text-[10px] font-semibold transition select-none ${
-                                            editingMlValue === String(ml)
-                                              ? 'bg-[#7A1D2E] text-white'
-                                              : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990]'
-                                          }`}
-                                        >
-                                          {ml}
-                                        </button>
-                                      ))}
-                                      <input
-                                        type="number"
-                                        min="1"
-                                        autoFocus
-                                        value={editingMlValue}
-                                        onChange={(e) => setEditingMlValue(e.target.value)}
-                                        className="w-16 bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-[10px] text-[#e6edea] focus:outline-none"
-                                      />
-                                      <button type="submit" className="text-[10px] font-bold text-emerald-400 px-1">✓</button>
-                                      <button type="button" onClick={() => setEditingMlId(null)} className="text-[10px] text-[#7d9990] px-1">✕</button>
-                                    </form>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditingMlId(item.id); setEditingMlValue(String(item.bottle_ml)); }}
-                                      className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2"
-                                    >
-                                      {item.bottle_ml}ml
-                                    </button>
-                                  )}
-                                </div>
-
-                                <div className="mt-0.5 flex items-center gap-1">
-                                  {isLow && (
-                                    <span className="text-amber-400 font-semibold flex items-center gap-0.5 text-[10px]">
-                                      <AlertTriangle size={10} strokeWidth={2.5} />
-                                      Bajo stock ·&nbsp;
-                                    </span>
-                                  )}
-                                  {editingMinId === item.id ? (
-                                    <form
-                                      onSubmit={(e) => { e.preventDefault(); handleSaveMinStock(item); }}
-                                      className="flex items-center gap-1"
-                                    >
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="0.25"
-                                        autoFocus
-                                        value={editingMinValue}
-                                        onChange={(e) => setEditingMinValue(e.target.value)}
-                                        className="w-16 bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-xs text-[#e6edea] focus:outline-none"
-                                      />
-                                      <button type="submit" className="text-[10px] font-bold text-emerald-400 px-1">✓</button>
-                                      <button type="button" onClick={() => setEditingMinId(null)} className="text-[10px] text-[#7d9990] px-1">✕</button>
-                                    </form>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => { setEditingMinId(item.id); setEditingMinValue(String(item.min_stock)); }}
-                                      className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2"
-                                    >
-                                      Min: {item.min_stock} {item.unit}
-                                    </button>
-                                  )}
-                                </div>
+                                {editingNameId === item.id ? (
+                                  <form onSubmit={(e) => { e.preventDefault(); handleSaveProductName(item); }} className="flex items-center gap-1">
+                                    <input
+                                      type="text"
+                                      autoFocus
+                                      value={editingNameValue}
+                                      onChange={(e) => setEditingNameValue(e.target.value)}
+                                      className="flex-1 min-w-0 bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-sm text-[#e6edea] focus:outline-none"
+                                    />
+                                    <button type="submit" className="text-[11px] font-bold text-emerald-400 px-1 shrink-0">✓</button>
+                                    <button type="button" onClick={() => setEditingNameId(null)} className="text-[11px] text-[#7d9990] px-1 shrink-0">✕</button>
+                                  </form>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => { setEditingNameId(item.id); setEditingNameValue(item.product_name); }}
+                                    className="font-bold text-sm text-[#e6edea] leading-tight hover:text-[#E8899A] transition text-left w-full truncate"
+                                  >
+                                    {item.product_name}
+                                  </button>
+                                )}
                               </div>
-
-                              {/* Stock display */}
-                              <div className="shrink-0 text-right min-w-[56px]">
-                                <span
-                                  className={`font-mono font-black text-xl tabular-nums leading-none ${
-                                    isLow ? 'text-amber-400' : 'text-[#e6edea]'
-                                  } ${isSaving ? 'opacity-50' : ''}`}
+                              {editingNameId !== item.id && (
+                                <button
+                                  onClick={() => handleDeleteProduct(item.id, item.product_name)}
+                                  disabled={deletingId === item.id}
+                                  className="shrink-0 text-[#7d9990] hover:text-red-400 transition disabled:opacity-30 mt-0.5"
                                 >
+                                  <Trash2 size={13} strokeWidth={2} />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Category / Unit */}
+                            <div className="mb-0.5">
+                              {editingMetaId === item.id ? (
+                                <form onSubmit={(e) => { e.preventDefault(); handleSaveMeta(item); }} className="flex items-center gap-1 flex-wrap">
+                                  <select value={editingCategory} onChange={(e) => setEditingCategory(e.target.value)} autoFocus className="bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-[10px] text-[#e6edea] focus:outline-none">
+                                    {['licores', 'cervezas', 'vinos', 'refrescos', 'mixers', 'otros'].map((c) => <option key={c} value={c}>{c}</option>)}
+                                  </select>
+                                  <select value={editingUnit} onChange={(e) => setEditingUnit(e.target.value)} className="bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-[10px] text-[#e6edea] focus:outline-none">
+                                    {['botellas', 'cajas', 'piezas', 'litros', 'kg', 'latas'].map((u) => <option key={u} value={u}>{u}</option>)}
+                                  </select>
+                                  <button type="submit" className="text-[10px] font-bold text-emerald-400 px-1">✓</button>
+                                  <button type="button" onClick={() => setEditingMetaId(null)} className="text-[10px] text-[#7d9990] px-1">✕</button>
+                                </form>
+                              ) : (
+                                <button type="button" onClick={() => { setEditingMetaId(item.id); setEditingCategory(item.category); setEditingUnit(item.unit); }} className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2">
+                                  {item.category} · {item.unit}
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Bottle ml */}
+                            <div className="mb-1">
+                              {editingMlId === item.id ? (
+                                <form onSubmit={(e) => { e.preventDefault(); handleSaveBottleMl(item); }} className="flex items-center gap-1 flex-wrap">
+                                  {[200, 375, 500, 700, 750, 1000, 1750].map((ml) => (
+                                    <button key={ml} type="button" onClick={() => setEditingMlValue(String(ml))} className={`h-6 px-2 rounded-md text-[10px] font-semibold transition select-none ${editingMlValue === String(ml) ? 'bg-[#7A1D2E] text-white' : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990]'}`}>{ml}</button>
+                                  ))}
+                                  <input type="number" min="1" autoFocus value={editingMlValue} onChange={(e) => setEditingMlValue(e.target.value)} className="w-16 bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-[10px] text-[#e6edea] focus:outline-none" />
+                                  <button type="submit" className="text-[10px] font-bold text-emerald-400 px-1">✓</button>
+                                  <button type="button" onClick={() => setEditingMlId(null)} className="text-[10px] text-[#7d9990] px-1">✕</button>
+                                </form>
+                              ) : (
+                                <button type="button" onClick={() => { setEditingMlId(item.id); setEditingMlValue(String(item.bottle_ml)); }} className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2">
+                                  {item.bottle_ml}ml por botella
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Divider */}
+                            <div className="border-t border-[#1c2b27] my-2" />
+
+                            {/* Stock actual */}
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-xs text-[#7d9990]">Stock actual</span>
+                              <div className="flex items-center gap-2">
+                                {isLow && <AlertTriangle size={12} strokeWidth={2.5} className="text-amber-400" />}
+                                <span className={`font-mono font-black text-xl tabular-nums leading-none ${isLow ? 'text-amber-400' : 'text-[#e6edea]'} ${isAdjusting ? 'opacity-50' : ''}`}>
                                   {item.stock % 1 === 0 ? item.stock.toFixed(0) : item.stock.toFixed(2)}
                                 </span>
-                                <p className="text-[10px] text-[#7d9990]">{item.unit}</p>
+                                <span className="text-xs text-[#7d9990]">{item.unit}</span>
                               </div>
+                            </div>
 
-                              {/* Delta buttons */}
-                              <div className="shrink-0 flex flex-col gap-1">
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={() => handleDelta(item, -1)}
-                                    disabled={isSaving || item.stock <= 0}
-                                    className="w-9 h-9 rounded-xl bg-[#1c2b27] border border-[#223530] text-[#e6edea] font-bold text-sm hover:bg-[#7A1D2E]/40 active:scale-[0.92] transition disabled:opacity-30 disabled:cursor-not-allowed select-none"
-                                  >
-                                    -1
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelta(item, 1)}
-                                    disabled={isSaving}
-                                    className="w-9 h-9 rounded-xl bg-[#7A1D2E] border border-[#9E2A3E]/60 text-white font-bold text-sm hover:bg-[#9E2A3E] active:scale-[0.92] transition disabled:opacity-50 select-none"
-                                  >
-                                    +1
-                                  </button>
-                                </div>
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={() => handleDelta(item, -0.25)}
-                                    disabled={isSaving || item.stock <= 0}
-                                    className="w-9 h-7 rounded-lg bg-[#1c2b27] border border-[#223530] text-[#7d9990] font-semibold text-[10px] hover:bg-[#7A1D2E]/30 active:scale-[0.92] transition disabled:opacity-30 disabled:cursor-not-allowed select-none"
-                                  >
-                                    -.25
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelta(item, 0.25)}
-                                    disabled={isSaving}
-                                    className="w-9 h-7 rounded-lg bg-[#420F18]/60 border border-[#9E2A3E]/40 text-[#F5C2CB] font-semibold text-[10px] hover:bg-[#7A1D2E]/50 active:scale-[0.92] transition disabled:opacity-50 select-none"
-                                  >
-                                    +.25
-                                  </button>
-                                </div>
+                            {/* Ingresado / Salida inputs */}
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                              <div>
+                                <label className="block text-[10px] font-bold text-emerald-400 uppercase tracking-wider mb-1">+ Ingresado</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.25"
+                                  placeholder="0"
+                                  value={adj?.ingresado ?? ''}
+                                  onChange={(e) => setAdj(item.id, 'ingresado', e.target.value)}
+                                  className="w-full bg-[#0a0f0e] border border-[#223530] focus:border-emerald-700 rounded-lg px-3 py-2 text-sm text-[#e6edea] focus:outline-none focus:ring-1 focus:ring-emerald-700"
+                                />
                               </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-red-400 uppercase tracking-wider mb-1">− Salida</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.25"
+                                  placeholder="0"
+                                  value={adj?.salida ?? ''}
+                                  onChange={(e) => setAdj(item.id, 'salida', e.target.value)}
+                                  className="w-full bg-[#0a0f0e] border border-[#223530] focus:border-red-800 rounded-lg px-3 py-2 text-sm text-[#e6edea] focus:outline-none focus:ring-1 focus:ring-red-800"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Preview + save */}
+                            {hasAdj && (
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 flex items-center gap-1.5 bg-[#1c2b27] rounded-xl px-3 py-2">
+                                  <span className="text-[10px] text-[#7d9990] shrink-0">= Quedan</span>
+                                  <span className={`font-mono font-black text-base tabular-nums leading-none ml-auto ${newStock < item.min_stock ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                    {newStock % 1 === 0 ? newStock.toFixed(0) : newStock.toFixed(2)}
+                                  </span>
+                                  <span className="text-[10px] text-[#7d9990]">{item.unit}</span>
+                                </div>
+                                <button
+                                  onClick={() => handleAdjust(item)}
+                                  disabled={isAdjusting}
+                                  className="shrink-0 min-h-[40px] px-4 rounded-xl bg-[#7A1D2E] hover:bg-[#9E2A3E] text-white font-bold text-xs transition active:scale-[0.97] disabled:opacity-50 select-none"
+                                >
+                                  {isAdjusting ? '...' : 'Actualizar'}
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Min stock */}
+                            <div className="mt-2 flex items-center gap-1">
+                              {isLow && (
+                                <span className="text-[10px] text-amber-400 font-semibold">Bajo stock ·&nbsp;</span>
+                              )}
+                              {editingMinId === item.id ? (
+                                <form onSubmit={(e) => { e.preventDefault(); handleSaveMinStock(item); }} className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.25"
+                                    autoFocus
+                                    value={editingMinValue}
+                                    onChange={(e) => setEditingMinValue(e.target.value)}
+                                    className="w-20 bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-xs text-[#e6edea] focus:outline-none"
+                                  />
+                                  <button type="submit" className="text-[10px] font-bold text-emerald-400 px-1">✓</button>
+                                  <button type="button" onClick={() => setEditingMinId(null)} className="text-[10px] text-[#7d9990] px-1">✕</button>
+                                </form>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditingMinId(item.id); setEditingMinValue(String(item.min_stock)); }}
+                                  className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2"
+                                >
+                                  Mín: {item.min_stock} {item.unit}
+                                </button>
+                              )}
                             </div>
                           </div>
                         );
@@ -692,27 +632,15 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
         {/* ── Mermas ── */}
         {tab === 1 && (
           <>
-            {/* Merma form */}
             <div className={`${CARD} p-4`}>
-              <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-3">
-                Registrar merma
-              </p>
+              <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-3">Registrar merma</p>
               <form onSubmit={handleMermaSubmit} className="space-y-3">
-                {/* Product selector */}
-                <select
-                  value={mermaProductId}
-                  onChange={(e) => setMermaProductId(e.target.value)}
-                  className="w-full bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] appearance-none"
-                >
+                <select value={mermaProductId} onChange={(e) => setMermaProductId(e.target.value)} className={`${INPUT} appearance-none`}>
                   <option value="">Seleccionar producto...</option>
                   {inventory.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.product_name} ({item.stock} {item.unit})
-                    </option>
+                    <option key={item.id} value={item.id}>{item.product_name} ({item.stock} {item.unit})</option>
                   ))}
                 </select>
-
-                {/* Quantity + Reason row */}
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -723,54 +651,31 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
                     onChange={(e) => setMermaQty(e.target.value)}
                     className="w-24 bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] placeholder:text-[#4a6560]"
                   />
-                  <select
-                    value={mermaReason}
-                    onChange={(e) => setMermaReason(e.target.value)}
-                    className="flex-1 bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] appearance-none"
-                  >
-                    {REASONS.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
+                  <select value={mermaReason} onChange={(e) => setMermaReason(e.target.value)} className={`${INPUT} flex-1 appearance-none`}>
+                    {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
                   </select>
                 </div>
-
-                {mermaError && (
-                  <p className="text-xs text-red-400">{mermaError}</p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={mermaSubmitting}
-                  className="w-full min-h-[44px] rounded-xl bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold text-sm transition duration-150 ease-out disabled:opacity-50 select-none"
-                >
+                {mermaError && <p className="text-xs text-red-400">{mermaError}</p>}
+                <button type="submit" disabled={mermaSubmitting} className="w-full min-h-[44px] rounded-xl bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold text-sm transition duration-150 ease-out disabled:opacity-50 select-none">
                   {mermaSubmitting ? 'Registrando...' : 'Registrar Merma'}
                 </button>
               </form>
             </div>
 
-            {/* Merma history */}
             <div>
-              <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 mb-1.5">
-                Mermas del turno
-              </p>
+              <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 mb-1.5">Mermas del turno</p>
               {mermas.length === 0 ? (
-                <div className="text-center py-8 text-[#7d9990] text-sm">
-                  Sin mermas registradas hoy.
-                </div>
+                <div className="text-center py-8 text-[#7d9990] text-sm">Sin mermas registradas hoy.</div>
               ) : (
                 <div className="space-y-2">
                   {mermas.map((m) => (
                     <div key={m.id} className={`${CARD} px-4 py-3 flex items-center gap-3`}>
                       <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-sm text-[#e6edea] leading-tight truncate">
-                          {m.product_name}
-                        </p>
+                        <p className="font-semibold text-sm text-[#e6edea] leading-tight truncate">{m.product_name}</p>
                         <p className="text-[10px] text-[#7d9990] mt-0.5">{m.reason}</p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="font-mono font-bold text-[#F5C2CB] text-sm">
-                          -{m.quantity}
-                        </p>
+                        <p className="font-mono font-bold text-[#F5C2CB] text-sm">-{m.quantity}</p>
                         <p className="text-[10px] text-[#7d9990]">{fmtTime(m.created_at)}</p>
                       </div>
                     </div>

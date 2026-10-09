@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, Download, AlertTriangle, TrendingUp } from 'lucide-react';
 
-type ReportTab = 'general' | 'capitanes' | 'turnos' | 'productos' | 'sanciones' | 'checklist' | 'horarios' | 'barra';
+type ReportTab = 'general' | 'capitanes' | 'turnos' | 'productos' | 'sanciones' | 'checklist' | 'horarios' | 'rubricas' | 'barra';
 
 interface RawSale {
   sale_date: string;
@@ -76,6 +76,22 @@ interface StaffSanctionSummary {
   sanciones: number;
   balance: number;
   count: number;
+}
+
+interface EvalRow {
+  id: string;
+  eval_date: string;
+  staff_id: string;
+  staff_name: string;
+  evaluator_name: string;
+  average_score: number;
+  observations: string | null;
+}
+
+interface EvalScoreRow {
+  evaluation_id: string;
+  criterion_label: string;
+  score: number;
 }
 
 interface ScheduleRow {
@@ -200,6 +216,11 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   const [sanctionNames, setSanctionNames] = useState<Map<string, string>>(new Map());
   const [sanctionLoading, setSanctionLoading] = useState(false);
 
+  // Rúbricas state
+  const [evals, setEvals] = useState<EvalRow[]>([]);
+  const [evalScores, setEvalScores] = useState<EvalScoreRow[]>([]);
+  const [rubricasLoading, setRubricasLoading] = useState(false);
+
   // Horarios state
   const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
   const [scheduleNames, setScheduleNames] = useState<Map<string, string>>(new Map());
@@ -297,6 +318,34 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     [supabase],
   );
 
+  const loadRubricas = useCallback(
+    async (from: string, to: string) => {
+      setRubricasLoading(true);
+      try {
+        const { data: evalData } = await supabase
+          .from('evaluations')
+          .select('id, eval_date, staff_id, staff_name, evaluator_name, average_score, observations')
+          .gte('eval_date', from)
+          .lte('eval_date', to)
+          .order('eval_date', { ascending: false });
+        const rows = (evalData ?? []) as EvalRow[];
+        setEvals(rows);
+        if (rows.length > 0) {
+          const ids = rows.map((e) => e.id);
+          const { data: scoresData } = await supabase
+            .from('evaluation_scores')
+            .select('evaluation_id, criterion_label, score')
+            .in('evaluation_id', ids);
+          setEvalScores((scoresData ?? []) as EvalScoreRow[]);
+        } else {
+          setEvalScores([]);
+        }
+      } catch { /* silent */ }
+      setRubricasLoading(false);
+    },
+    [supabase],
+  );
+
   const loadHorarios = useCallback(
     async (from: string, to: string) => {
       setHorariosLoading(true);
@@ -375,6 +424,9 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     if (tab === 'sanciones') loadSanciones(dateFrom, dateTo);
   }, [tab, dateFrom, dateTo, loadSanciones]);
+  useEffect(() => {
+    if (tab === 'rubricas') loadRubricas(dateFrom, dateTo);
+  }, [tab, dateFrom, dateTo, loadRubricas]);
   useEffect(() => {
     if (tab === 'horarios') loadHorarios(dateFrom, dateTo);
   }, [tab, dateFrom, dateTo, loadHorarios]);
@@ -515,6 +567,35 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     sanciones: r2(staffSanctionSummaries.reduce((a, s) => a + s.sanciones, 0)),
     balance: r2(staffSanctionSummaries.reduce((a, s) => a + s.balance, 0)),
   }), [staffSanctionSummaries]);
+
+  // ── Derived: rúbricas ───────────────────────────────────────────────────────
+  const evalStaffSummaries = useMemo(() => {
+    const m = new Map<string, { staff_id: string; name: string; count: number; totalScore: number }>();
+    for (const e of evals) {
+      const ex = m.get(e.staff_id);
+      if (ex) { ex.count++; ex.totalScore += Number(e.average_score); }
+      else m.set(e.staff_id, { staff_id: e.staff_id, name: e.staff_name, count: 1, totalScore: Number(e.average_score) });
+    }
+    return [...m.values()]
+      .map((x) => ({ ...x, avgScore: r2(x.totalScore / x.count) }))
+      .sort((a, b) => b.avgScore - a.avgScore);
+  }, [evals]);
+
+  const criterionAverages = useMemo(() => {
+    const m = new Map<string, { label: string; total: number; count: number }>();
+    for (const s of evalScores) {
+      const ex = m.get(s.criterion_label);
+      if (ex) { ex.total += Number(s.score); ex.count++; }
+      else m.set(s.criterion_label, { label: s.criterion_label, total: Number(s.score), count: 1 });
+    }
+    return [...m.values()]
+      .map((x) => ({ label: x.label, avg: r2(x.total / x.count) }))
+      .sort((a, b) => b.avg - a.avg);
+  }, [evalScores]);
+
+  const evalGlobalAvg = useMemo(() =>
+    evals.length > 0 ? r2(evals.reduce((s, e) => s + Number(e.average_score), 0) / evals.length) : 0,
+  [evals]);
 
   // ── Derived: horarios ───────────────────────────────────────────────────────
   const scheduleStaffSummaries = useMemo(() => {
@@ -677,6 +758,14 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         ],
         `sanciones_${range}.csv`,
       );
+    } else if (tab === 'rubricas') {
+      exportCSV(
+        [
+          ['Fecha', 'Colaborador', 'Evaluador', 'Promedio', 'Observaciones'],
+          ...evals.map((e) => [e.eval_date, e.staff_name, e.evaluator_name, String(e.average_score), e.observations ?? '']),
+        ],
+        `rubricas_${range}.csv`,
+      );
     } else if (tab === 'horarios') {
       exportCSV(
         [
@@ -721,6 +810,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     { key: 'sanciones',  label: 'Sanciones' },
     { key: 'checklist',  label: 'Checklist' },
     { key: 'horarios',   label: 'Horarios' },
+    { key: 'rubricas',   label: 'Rúbricas' },
     { key: 'barra',      label: 'Barra' },
   ];
 
@@ -1500,6 +1590,135 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                         Selecciona un rango de hasta 14 días para ver la grilla.
                       </p>
                     )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ══ RÚBRICAS ═════════════════════════════════════════════════════ */}
+            {tab === 'rubricas' && (
+              <div className="space-y-3">
+                {rubricasLoading ? (
+                  <div className="text-center py-16 text-[#7d9990] text-sm">Cargando...</div>
+                ) : evals.length === 0 ? (
+                  <div className="text-center py-12 text-[#7d9990] text-sm">Sin evaluaciones en este periodo.</div>
+                ) : (
+                  <>
+                    {/* Summary card */}
+                    <div className="bg-[#151D1A] border border-[#223530] rounded-2xl p-4">
+                      <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-3">
+                        Resumen · {evals.length} evaluación{evals.length !== 1 ? 'es' : ''}
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-[#0a0f0e] rounded-xl p-3 text-center">
+                          <p className="font-mono font-bold text-xl text-[#E8899A]">{evals.length}</p>
+                          <p className="text-[10px] text-[#7d9990] mt-0.5">Evaluaciones</p>
+                        </div>
+                        <div className="bg-[#0a0f0e] rounded-xl p-3 text-center">
+                          <p className={`font-mono font-bold text-xl ${evalGlobalAvg >= 4 ? 'text-emerald-400' : evalGlobalAvg >= 3 ? 'text-amber-400' : 'text-rose-400'}`}>
+                            {evalGlobalAvg.toFixed(1)}
+                          </p>
+                          <p className="text-[10px] text-[#7d9990] mt-0.5">Promedio global</p>
+                        </div>
+                        <div className="bg-[#0a0f0e] rounded-xl p-3 text-center">
+                          <p className="font-mono font-bold text-xl text-[#e6edea]">{evalStaffSummaries.length}</p>
+                          <p className="text-[10px] text-[#7d9990] mt-0.5">Colaboradores</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Staff ranking */}
+                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                      Ranking por colaborador
+                    </p>
+                    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] divide-y divide-[#223530] overflow-hidden">
+                      {evalStaffSummaries.map((s, idx) => {
+                        const pct = (s.avgScore / 5) * 100;
+                        return (
+                          <div key={s.staff_id} className="px-4 py-3">
+                            <div className="flex items-center gap-3 mb-1.5">
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 ${
+                                idx === 0 ? 'bg-[#7A1D2E] text-white' :
+                                idx === 1 ? 'bg-[#223530] text-[#e6edea]' :
+                                'bg-[#1c2b27] border border-[#223530] text-[#7d9990]'
+                              }`}>{idx + 1}</div>
+                              <p className="flex-1 font-bold text-sm text-[#e6edea] truncate">{s.name}</p>
+                              <div className="shrink-0 text-right">
+                                <p className={`font-mono font-bold text-sm ${s.avgScore >= 4 ? 'text-emerald-400' : s.avgScore >= 3 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                  {s.avgScore.toFixed(1)}
+                                </p>
+                                <p className="text-[10px] text-[#7d9990]">{s.count} eval.</p>
+                              </div>
+                            </div>
+                            <div className="h-1.5 bg-[#1c2b27] rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${s.avgScore >= 4 ? 'bg-emerald-600' : s.avgScore >= 3 ? 'bg-amber-600' : 'bg-rose-700'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Criterion averages */}
+                    {criterionAverages.length > 0 && (
+                      <>
+                        <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                          Promedio por criterio
+                        </p>
+                        <div className="bg-[#151D1A] rounded-2xl border border-[#223530] divide-y divide-[#223530] overflow-hidden">
+                          {criterionAverages.map((c) => {
+                            const pct = (c.avg / 5) * 100;
+                            return (
+                              <div key={c.label} className="px-4 py-2.5">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className="flex-1 text-sm text-[#e6edea] truncate">{c.label}</p>
+                                  <p className={`font-mono font-bold text-sm shrink-0 ${c.avg >= 4 ? 'text-emerald-400' : c.avg >= 3 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                    {c.avg.toFixed(1)}
+                                  </p>
+                                </div>
+                                <div className="h-1 bg-[#1c2b27] rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${c.avg >= 4 ? 'bg-emerald-600' : c.avg >= 3 ? 'bg-amber-600' : 'bg-rose-700'}`}
+                                    style={{ width: `${pct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Evaluation list */}
+                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                      Detalle
+                    </p>
+                    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] divide-y divide-[#223530] overflow-hidden">
+                      {evals.map((e) => {
+                        const score = Number(e.average_score);
+                        return (
+                          <div key={e.id} className="flex items-center gap-3 px-4 py-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm text-[#e6edea] truncate">{e.staff_name}</p>
+                              <p className="text-[10px] text-[#7d9990]">
+                                {e.eval_date} · por {e.evaluator_name}
+                              </p>
+                              {e.observations && (
+                                <p className="text-[10px] text-[#7d9990] mt-0.5 italic truncate">{e.observations}</p>
+                              )}
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className={`font-mono font-bold text-lg leading-tight ${score >= 4 ? 'text-emerald-400' : score >= 3 ? 'text-amber-400' : 'text-rose-400'}`}>
+                                {score.toFixed(1)}
+                              </p>
+                              <p className="text-[10px] text-[#7d9990]">/ 5</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </>
                 )}
               </div>

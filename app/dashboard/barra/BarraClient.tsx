@@ -11,7 +11,7 @@ import {
   X,
   Trash2,
 } from 'lucide-react';
-import { updateInventoryStockAction, updateInventoryMinStockAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
+import { updateInventoryStockAction, updateInventoryMinStockAction, updateInventoryProductNameAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
 
 export interface InventoryItem {
   id: string;
@@ -75,6 +75,10 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
   // Edit min_stock state
   const [editingMinId, setEditingMinId] = useState<string | null>(null);
   const [editingMinValue, setEditingMinValue] = useState('');
+
+  // Edit product name state
+  const [editingNameId, setEditingNameId] = useState<string | null>(null);
+  const [editingNameValue, setEditingNameValue] = useState('');
 
   const lowStock = inventory.filter((i) => i.stock < i.min_stock);
 
@@ -162,6 +166,19 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
       setAddError(err instanceof Error ? err.message : 'Error al agregar producto.');
     } finally {
       setAddSubmitting(false);
+    }
+  }
+
+  async function handleSaveProductName(item: InventoryItem) {
+    const newName = editingNameValue.trim();
+    if (!newName) { setEditingNameId(null); return; }
+    const prev = item.product_name;
+    setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, product_name: newName } : i));
+    setEditingNameId(null);
+    try {
+      await updateInventoryProductNameAction(item.id, newName);
+    } catch {
+      setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, product_name: prev } : i));
     }
   }
 
@@ -360,17 +377,40 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
                               {/* Info */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-1.5">
-                                  <p className="font-semibold text-sm text-[#e6edea] leading-tight truncate">
-                                    {item.product_name}
-                                  </p>
-                                  <button
-                                    onClick={() => handleDeleteProduct(item.id, item.product_name)}
-                                    disabled={deletingId === item.id}
-                                    className="shrink-0 text-[#7d9990] hover:text-red-400 transition disabled:opacity-30"
-                                    aria-label="Eliminar producto"
-                                  >
-                                    <Trash2 size={12} strokeWidth={2} />
-                                  </button>
+                                  {editingNameId === item.id ? (
+                                    <form
+                                      onSubmit={(e) => { e.preventDefault(); handleSaveProductName(item); }}
+                                      className="flex items-center gap-1 flex-1 min-w-0"
+                                    >
+                                      <input
+                                        type="text"
+                                        autoFocus
+                                        value={editingNameValue}
+                                        onChange={(e) => setEditingNameValue(e.target.value)}
+                                        className="flex-1 min-w-0 bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-sm text-[#e6edea] focus:outline-none"
+                                      />
+                                      <button type="submit" className="text-[11px] font-bold text-emerald-400 px-1 shrink-0">✓</button>
+                                      <button type="button" onClick={() => setEditingNameId(null)} className="text-[11px] text-[#7d9990] px-1 shrink-0">✕</button>
+                                    </form>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingNameId(item.id); setEditingNameValue(item.product_name); }}
+                                      className="font-semibold text-sm text-[#e6edea] leading-tight truncate hover:text-[#E8899A] transition text-left"
+                                    >
+                                      {item.product_name}
+                                    </button>
+                                  )}
+                                  {editingNameId !== item.id && (
+                                    <button
+                                      onClick={() => handleDeleteProduct(item.id, item.product_name)}
+                                      disabled={deletingId === item.id}
+                                      className="shrink-0 text-[#7d9990] hover:text-red-400 transition disabled:opacity-30"
+                                      aria-label="Eliminar producto"
+                                    >
+                                      <Trash2 size={12} strokeWidth={2} />
+                                    </button>
+                                  )}
                                 </div>
                                 <div className="mt-0.5 flex items-center gap-1">
                                   {isLow && (

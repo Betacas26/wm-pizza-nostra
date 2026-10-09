@@ -101,6 +101,19 @@ export async function deleteInventoryProductAction(inventoryId: string): Promise
   if (error) throw new Error(error.message);
 }
 
+export async function updateInventoryProductNameAction(
+  inventoryId: string,
+  newName: string,
+): Promise<void> {
+  await assertBarraRole();
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('bar_inventory')
+    .update({ product_name: newName.trim(), updated_at: new Date().toISOString() })
+    .eq('id', inventoryId);
+  if (error) throw new Error(error.message);
+}
+
 export async function updateInventoryMinStockAction(
   inventoryId: string,
   newMinStock: number,

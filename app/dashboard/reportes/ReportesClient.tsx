@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, Download, AlertTriangle, TrendingUp } from 'lucide-react';
 
-type ReportTab = 'general' | 'capitanes' | 'turnos' | 'productos' | 'sanciones' | 'checklist' | 'barra';
+type ReportTab = 'general' | 'capitanes' | 'turnos' | 'productos' | 'sanciones' | 'checklist' | 'horarios' | 'barra';
 
 interface RawSale {
   sale_date: string;
@@ -76,6 +76,12 @@ interface StaffSanctionSummary {
   sanciones: number;
   balance: number;
   count: number;
+}
+
+interface ScheduleRow {
+  staff_id: string;
+  day: string;
+  shift: 'Matutino' | 'Vespertino' | 'Descanso';
 }
 
 interface ClosingRow {
@@ -194,6 +200,11 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   const [sanctionNames, setSanctionNames] = useState<Map<string, string>>(new Map());
   const [sanctionLoading, setSanctionLoading] = useState(false);
 
+  // Horarios state
+  const [schedules, setSchedules] = useState<ScheduleRow[]>([]);
+  const [scheduleNames, setScheduleNames] = useState<Map<string, string>>(new Map());
+  const [horariosLoading, setHorariosLoading] = useState(false);
+
   // Checklist state
   const [closings, setClosings] = useState<ClosingRow[]>([]);
   const [checklistLoading, setChecklistLoading] = useState(false);
@@ -286,6 +297,38 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     [supabase],
   );
 
+  const loadHorarios = useCallback(
+    async (from: string, to: string) => {
+      setHorariosLoading(true);
+      try {
+        const [{ data: schData }, { data: profilesData }] = await Promise.all([
+          supabase
+            .from('schedules')
+            .select('staff_id, day, shift')
+            .gte('day', from)
+            .lte('day', to)
+            .order('day'),
+          supabase
+            .from('profiles')
+            .select('id, name')
+            .eq('active', true)
+            .order('name'),
+        ]);
+        setSchedules((schData ?? []) as ScheduleRow[]);
+        setScheduleNames(
+          new Map(
+            (profilesData ?? []).map((p: { id: string; name: string | null }) => [
+              p.id,
+              p.name ?? '(sin nombre)',
+            ]),
+          ),
+        );
+      } catch { /* silent */ }
+      setHorariosLoading(false);
+    },
+    [supabase],
+  );
+
   const loadChecklist = useCallback(
     async (from: string, to: string) => {
       setChecklistLoading(true);
@@ -332,6 +375,9 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     if (tab === 'sanciones') loadSanciones(dateFrom, dateTo);
   }, [tab, dateFrom, dateTo, loadSanciones]);
+  useEffect(() => {
+    if (tab === 'horarios') loadHorarios(dateFrom, dateTo);
+  }, [tab, dateFrom, dateTo, loadHorarios]);
   useEffect(() => {
     if (tab === 'checklist') loadChecklist(dateFrom, dateTo);
   }, [tab, dateFrom, dateTo, loadChecklist]);
@@ -470,6 +516,33 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     balance: r2(staffSanctionSummaries.reduce((a, s) => a + s.balance, 0)),
   }), [staffSanctionSummaries]);
 
+  // ── Derived: horarios ───────────────────────────────────────────────────────
+  const scheduleStaffSummaries = useMemo(() => {
+    const m = new Map<string, { staff_id: string; name: string; matutino: number; vespertino: number; descanso: number }>();
+    for (const s of schedules) {
+      const name = scheduleNames.get(s.staff_id) ?? s.staff_id;
+      if (!m.has(s.staff_id)) m.set(s.staff_id, { staff_id: s.staff_id, name, matutino: 0, vespertino: 0, descanso: 0 });
+      const ex = m.get(s.staff_id)!;
+      if (s.shift === 'Matutino') ex.matutino++;
+      else if (s.shift === 'Vespertino') ex.vespertino++;
+      else ex.descanso++;
+    }
+    return [...m.values()]
+      .map((x) => ({ ...x, total: x.matutino + x.vespertino }))
+      .sort((a, b) => b.total - a.total);
+  }, [schedules, scheduleNames]);
+
+  const scheduleDays = useMemo(() => {
+    const days = [...new Set(schedules.map((s) => s.day))].sort();
+    return days;
+  }, [schedules]);
+
+  const scheduleTotals = useMemo(() => ({
+    matutino: schedules.filter((s) => s.shift === 'Matutino').length,
+    vespertino: schedules.filter((s) => s.shift === 'Vespertino').length,
+    descanso: schedules.filter((s) => s.shift === 'Descanso').length,
+  }), [schedules]);
+
   // ── Derived: checklist ──────────────────────────────────────────────────────
   const checklistDayRows = useMemo(() => {
     const m = new Map<string, { date: string; apertura: ClosingRow[]; cierre: ClosingRow[] }>();
@@ -604,6 +677,15 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         ],
         `sanciones_${range}.csv`,
       );
+    } else if (tab === 'horarios') {
+      exportCSV(
+        [
+          ['Colaborador', 'Matutino', 'Vespertino', 'Descanso', 'Turnos activos'],
+          ...scheduleStaffSummaries.map((s) => [s.name, String(s.matutino), String(s.vespertino), String(s.descanso), String(s.total)]),
+          ['TOTAL', String(scheduleTotals.matutino), String(scheduleTotals.vespertino), String(scheduleTotals.descanso), String(scheduleTotals.matutino + scheduleTotals.vespertino)],
+        ],
+        `horarios_${range}.csv`,
+      );
     } else if (tab === 'checklist') {
       exportCSV(
         [
@@ -638,6 +720,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     { key: 'productos', label: 'Productos' },
     { key: 'sanciones',  label: 'Sanciones' },
     { key: 'checklist',  label: 'Checklist' },
+    { key: 'horarios',   label: 'Horarios' },
     { key: 'barra',      label: 'Barra' },
   ];
 
@@ -1295,6 +1378,128 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                         );
                       })}
                     </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ══ HORARIOS ═════════════════════════════════════════════════════ */}
+            {tab === 'horarios' && (
+              <div className="space-y-3">
+                {horariosLoading ? (
+                  <div className="text-center py-16 text-[#7d9990] text-sm">Cargando...</div>
+                ) : schedules.length === 0 ? (
+                  <div className="text-center py-12 text-[#7d9990] text-sm">Sin horarios asignados en este periodo.</div>
+                ) : (
+                  <>
+                    {/* Summary */}
+                    <div className="bg-[#151D1A] border border-[#223530] rounded-2xl p-4">
+                      <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-3">
+                        Resumen · {scheduleDays.length} días
+                      </p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: 'Matutino', value: scheduleTotals.matutino, color: 'text-[#E8899A]' },
+                          { label: 'Vespertino', value: scheduleTotals.vespertino, color: 'text-sky-400' },
+                          { label: 'Descanso', value: scheduleTotals.descanso, color: 'text-[#7d9990]' },
+                        ].map((item) => (
+                          <div key={item.label} className="bg-[#0a0f0e] rounded-xl p-3 text-center">
+                            <p className={`font-mono font-bold text-xl leading-tight ${item.color}`}>{item.value}</p>
+                            <p className="text-[10px] text-[#7d9990] mt-0.5">{item.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Per-staff summary table */}
+                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                      Por colaborador
+                    </p>
+                    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden">
+                      <div className="grid grid-cols-5 px-4 py-2 border-b border-[#223530] bg-[#0a0f0e]">
+                        <span className="col-span-2 text-[10px] font-bold text-[#7d9990] uppercase">Nombre</span>
+                        <span className="text-[10px] font-bold text-[#E8899A] uppercase text-center">Mat.</span>
+                        <span className="text-[10px] font-bold text-sky-400 uppercase text-center">Vesp.</span>
+                        <span className="text-[10px] font-bold text-[#7d9990] uppercase text-center">Desc.</span>
+                      </div>
+                      {scheduleStaffSummaries.map((s, i) => (
+                        <div
+                          key={s.staff_id}
+                          className={`grid grid-cols-5 px-4 py-2.5 items-center ${i < scheduleStaffSummaries.length - 1 ? 'border-b border-[#223530]' : ''}`}
+                        >
+                          <span className="col-span-2 text-sm font-semibold text-[#e6edea] truncate">{s.name.split(' ')[0]}</span>
+                          <span className="text-sm font-mono font-bold text-[#E8899A] text-center">{s.matutino > 0 ? s.matutino : '—'}</span>
+                          <span className="text-sm font-mono font-bold text-sky-400 text-center">{s.vespertino > 0 ? s.vespertino : '—'}</span>
+                          <span className="text-sm font-mono text-[#7d9990] text-center">{s.descanso > 0 ? s.descanso : '—'}</span>
+                        </div>
+                      ))}
+                      {/* Totals footer */}
+                      <div className="grid grid-cols-5 px-4 py-2.5 border-t border-[#7A1D2E]/40 bg-[#1c2b27]">
+                        <span className="col-span-2 text-[10px] font-bold text-[#7d9990] uppercase">Total</span>
+                        <span className="text-sm font-mono font-bold text-[#E8899A] text-center">{scheduleTotals.matutino}</span>
+                        <span className="text-sm font-mono font-bold text-sky-400 text-center">{scheduleTotals.vespertino}</span>
+                        <span className="text-sm font-mono text-[#7d9990] text-center">{scheduleTotals.descanso}</span>
+                      </div>
+                    </div>
+
+                    {/* Day grid — only for ranges ≤ 14 days */}
+                    {scheduleDays.length <= 14 ? (
+                      <>
+                        <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                          Grilla semanal
+                        </p>
+                        <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-x-auto">
+                          <table className="border-collapse text-xs" style={{ minWidth: `${scheduleStaffSummaries.length > 0 ? 180 + scheduleDays.length * 52 : 200}px` }}>
+                            <thead>
+                              <tr className="border-b border-[#223530] bg-[#0a0f0e]">
+                                <th className="sticky left-0 bg-[#0a0f0e] px-3 py-2 text-left text-[#7d9990] font-bold min-w-[110px]">Colaborador</th>
+                                {scheduleDays.map((d) => (
+                                  <th key={d} className="px-2 py-2 text-center text-[#7d9990] font-bold whitespace-nowrap">
+                                    <span className="block text-[9px] uppercase">{new Date(d + 'T12:00:00').toLocaleDateString('es-MX', { weekday: 'short' })}</span>
+                                    <span>{d.slice(8)}</span>
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#223530]">
+                              {scheduleStaffSummaries.map((st) => {
+                                const byDay = new Map(
+                                  schedules.filter((s) => s.staff_id === st.staff_id).map((s) => [s.day, s.shift]),
+                                );
+                                return (
+                                  <tr key={st.staff_id} className="hover:bg-[#1c2b27]/30">
+                                    <td className="sticky left-0 bg-[#151D1A] px-3 py-2 font-semibold text-[#e6edea] truncate max-w-[110px]">
+                                      {st.name.split(' ')[0]}
+                                    </td>
+                                    {scheduleDays.map((d) => {
+                                      const shift = byDay.get(d);
+                                      return (
+                                        <td key={d} className="px-1 py-2 text-center">
+                                          {shift === 'Matutino' && (
+                                            <span className="inline-block text-[9px] font-bold bg-[#420F18]/60 text-[#E8899A] px-1.5 py-0.5 rounded">M</span>
+                                          )}
+                                          {shift === 'Vespertino' && (
+                                            <span className="inline-block text-[9px] font-bold bg-sky-900/50 text-sky-400 px-1.5 py-0.5 rounded">V</span>
+                                          )}
+                                          {shift === 'Descanso' && (
+                                            <span className="inline-block text-[9px] text-[#4a6560] px-1 py-0.5 rounded">D</span>
+                                          )}
+                                          {!shift && <span className="text-[#2a3d38]">·</span>}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-center text-xs text-[#7d9990] py-2">
+                        Selecciona un rango de hasta 14 días para ver la grilla.
+                      </p>
+                    )}
                   </>
                 )}
               </div>

@@ -12,6 +12,7 @@ import {
   X,
   Trash2,
   CalendarDays,
+  BarChart2,
 } from 'lucide-react';
 import { updateInventoryStockAction, updateInventoryMinStockAction, updateInventoryProductNameAction, updateInventoryCategoryUnitAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
 
@@ -268,18 +269,27 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
         </div>
       )}
 
-      {/* Diario shortcut */}
-      <div className="px-3 pt-3">
+      {/* Diario + Reportes shortcuts */}
+      <div className="px-3 pt-3 flex gap-2">
         <Link
           href="/dashboard/barra/diario"
-          className="flex items-center gap-3 w-full bg-[#151D1A] border border-[#223530] hover:border-[#7A1D2E]/60 rounded-2xl px-4 py-3 transition active:scale-[0.98] select-none"
+          className="flex-1 flex items-center gap-2.5 bg-[#151D1A] border border-[#223530] hover:border-[#7A1D2E]/60 rounded-2xl px-3 py-3 transition active:scale-[0.98] select-none"
         >
           <CalendarDays size={20} strokeWidth={1.5} className="text-[#E8899A] shrink-0" />
-          <div className="flex-1 min-w-0">
+          <div className="min-w-0">
             <p className="font-bold text-sm text-[#e6edea]">Inventario Diario</p>
-            <p className="text-xs text-[#7d9990]">Inicial y Arrastre por turno</p>
+            <p className="text-xs text-[#7d9990]">Inicial y Arrastre</p>
           </div>
-          <ChevronLeft size={16} strokeWidth={2} className="text-[#7d9990] rotate-180 shrink-0" />
+        </Link>
+        <Link
+          href="/dashboard/barra/reportes"
+          className="flex-1 flex items-center gap-2.5 bg-[#151D1A] border border-[#223530] hover:border-[#7A1D2E]/60 rounded-2xl px-3 py-3 transition active:scale-[0.98] select-none"
+        >
+          <BarChart2 size={20} strokeWidth={1.5} className="text-[#E8899A] shrink-0" />
+          <div className="min-w-0">
+            <p className="font-bold text-sm text-[#e6edea]">Reportes</p>
+            <p className="text-xs text-[#7d9990]">Consumo por fecha</p>
+          </div>
         </Link>
       </div>
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   UtensilsCrossed,
   Banknote,
@@ -159,11 +160,21 @@ export default function DashboardClient({
     <div className="h-screen bg-[#0D1211] text-[#e6edea] flex flex-col overflow-hidden">
       {/* Header */}
       <header className="bg-[#151D1A] border-b border-[#223530] px-4 py-3 flex items-center justify-between shadow-[0_2px_8px_rgba(0,0,0,0.2)] z-30 shrink-0 relative">
-        <div>
-          <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
-            WM Pizza Nostra
-          </h1>
-          <p className="text-xs text-[#7d9990] capitalize">{today}</p>
+        <div className="flex items-center gap-2.5">
+          <Image
+            src="/icon-512.png"
+            alt="WM Pizza Nostra"
+            width={36}
+            height={36}
+            className="rounded-xl shrink-0"
+            priority
+          />
+          <div>
+            <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
+              WM Pizza Nostra
+            </h1>
+            <p className="text-xs text-[#7d9990] capitalize">{today}</p>
+          </div>
         </div>
 
         {/* Avatar + dropdown */}

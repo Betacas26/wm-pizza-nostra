@@ -3,10 +3,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft } from 'lucide-react';
-import { startMealBreakAction, endMealBreakAction } from './actions';
+import { ChevronLeft, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { startMealBreakAction, endMealBreakAction, MAX_CONCURRENT } from './actions';
 
-// ── Tipos ──────────────────────────────────────────────────────────────────
+// ── Tipos ───────────────────────────────────────────────────────────────────
 type BreakStatus = 'activo' | 'completado' | 'excedido';
 
 export interface StaffMember {
@@ -32,20 +32,26 @@ export interface ComidasClientProps {
   today: string;
 }
 
-// ── Constantes ─────────────────────────────────────────────────────────────
+// ── Constantes ──────────────────────────────────────────────────────────────
 const DURATION_S = 30 * 60;
-const WARNING_S = 5 * 60;
+const WARNING_S  = 5 * 60;
 
-// ── Utilidades ─────────────────────────────────────────────────────────────
+// ── Utilidades ──────────────────────────────────────────────────────────────
 function getRemaining(startedAt: string, nowMs: number): number {
   return DURATION_S - Math.floor((nowMs - new Date(startedAt).getTime()) / 1000);
 }
 
-function fmtTimer(s: number): string {
-  const abs = Math.abs(s);
-  const m = Math.floor(abs / 60).toString().padStart(2, '0');
-  const sec = (abs % 60).toString().padStart(2, '0');
-  return s >= 0 ? `${m}:${sec}` : `-${m}:${sec}`;
+/** Muestra 00:00 en tiempo normal y +MM:SS cuando está excedido */
+function fmtTimer(remaining: number): string {
+  if (remaining >= 0) {
+    const m = Math.floor(remaining / 60).toString().padStart(2, '0');
+    const s = (remaining % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  }
+  const excess = Math.abs(remaining);
+  const m = Math.floor(excess / 60).toString().padStart(2, '0');
+  const s = (excess % 60).toString().padStart(2, '0');
+  return `+${m}:${s}`;
 }
 
 function fmtTime(iso: string): string {
@@ -55,44 +61,56 @@ function fmtTime(iso: string): string {
   });
 }
 
-// ── Componente ─────────────────────────────────────────────────────────────
+// ── Componente ──────────────────────────────────────────────────────────────
 export default function ComidasClient({
   staff,
   initialBreaks,
   today,
 }: ComidasClientProps) {
   const [breaks, setBreaks] = useState<MealBreak[]>(initialBreaks);
-  const [nowMs, setNowMs] = useState(Date.now());
+  const [nowMs, setNowMs]   = useState(Date.now());
   const [starting, setStarting] = useState<string | null>(null);
+  const [ending, setEnding]     = useState<string | null>(null);
+  const [error, setError]       = useState('');
 
+  // Reloj en vivo cada segundo
   useEffect(() => {
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
+  // Mapas rápidos
   const activeByStaff = useMemo(() => {
     const m = new Map<string, MealBreak>();
-    for (const b of breaks) {
-      if (!b.ended_at) m.set(b.staff_id, b);
-    }
+    for (const b of breaks) if (!b.ended_at) m.set(b.staff_id, b);
     return m;
   }, [breaks]);
 
   const finishedByStaff = useMemo(() => {
     const m = new Map<string, MealBreak>();
     for (const b of breaks) {
-      if (b.ended_at) {
-        const existing = m.get(b.staff_id);
-        if (!existing || b.ended_at > existing.ended_at!) m.set(b.staff_id, b);
-      }
+      if (!b.ended_at) continue;
+      const prev = m.get(b.staff_id);
+      if (!prev || b.ended_at > prev.ended_at!) m.set(b.staff_id, b);
     }
     return m;
   }, [breaks]);
 
-  const activeCount = activeByStaff.size;
+  const activeBreaks = useMemo(
+    () => breaks.filter((b) => !b.ended_at),
+    [breaks],
+  );
+  const activeCount = activeBreaks.length;
 
+  const staffInFloor = useMemo(
+    () => staff.filter((m) => !activeByStaff.has(m.id)),
+    [staff, activeByStaff],
+  );
+
+  // ── Acciones ───────────────────────────────────────────────────────────────
   async function handleStart(staffId: string) {
     if (starting) return;
+    setError('');
     setStarting(staffId);
     try {
       const result = await startMealBreakAction(staffId);
@@ -103,44 +121,36 @@ export default function ComidasClient({
           break_date: result.break_date,
           staff_id: result.staff_id,
           staff_name: staffName,
-          started_at: result.started_at,
+          started_at: result.started_at, // timestamp real de la DB
           duration_minutes: result.duration_minutes,
           ended_at: null,
           status: 'activo',
         },
         ...prev,
       ]);
-    } catch {
-      // silent
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al iniciar comida.');
     }
     setStarting(null);
   }
 
   async function handleEnd(breakId: string) {
-    const endedAt = new Date().toISOString();
-    const record = breaks.find((b) => b.id === breakId);
-    if (!record) return;
-
-    const elapsedS = Math.floor(
-      (Date.now() - new Date(record.started_at).getTime()) / 1000,
-    );
-    const status: BreakStatus = elapsedS > DURATION_S ? 'excedido' : 'completado';
-
-    setBreaks((prev) =>
-      prev.map((b) => (b.id === breakId ? { ...b, ended_at: endedAt, status } : b)),
-    );
-
+    if (ending) return;
+    setError('');
+    setEnding(breakId);
     try {
-      await endMealBreakAction(breakId, endedAt, status);
-    } catch {
+      // Status calculado server-side desde el started_at de la DB
+      const { ended_at, status } = await endMealBreakAction(breakId);
       setBreaks((prev) =>
-        prev.map((b) =>
-          b.id === breakId ? { ...b, ended_at: null, status: 'activo' } : b,
-        ),
+        prev.map((b) => (b.id === breakId ? { ...b, ended_at, status } : b)),
       );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Error al cerrar comida.');
     }
+    setEnding(null);
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#0D1211] text-[#e6edea]">
       {/* Header */}
@@ -160,162 +170,224 @@ export default function ComidasClient({
           <p className="text-xs text-[#7d9990]">
             {today} &middot; 30 min
             {activeCount > 0 && (
-              <span className="ml-1 font-semibold text-[#E8899A]">
-                &middot; {activeCount} activa{activeCount !== 1 ? 's' : ''}
+              <span className={`ml-1 font-semibold ${activeCount >= MAX_CONCURRENT ? 'text-red-400' : 'text-amber-400'}`}>
+                &middot; {activeCount} en comida
               </span>
             )}
           </p>
         </div>
       </header>
 
-      <main className="p-3 max-w-xl mx-auto space-y-2.5 pb-6">
-        {staff.length === 0 && (
-          <div className="text-center py-12 text-[#7d9990] text-sm">
-            Sin colaboradores activos.
+      <main className="p-3 max-w-xl mx-auto space-y-4 pb-8">
+
+        {/* Alerta de capacidad */}
+        {activeCount >= MAX_CONCURRENT && (
+          <div className="flex items-start gap-2 bg-rose-950/50 border border-rose-700/60 rounded-xl px-3 py-2.5">
+            <AlertTriangle size={16} strokeWidth={2} className="text-rose-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-rose-300">
+              <span className="font-bold">Capacidad al límite:</span>{' '}
+              {activeCount} personas en comida simultáneamente. Considera esperar antes de enviar a más colaboradores.
+            </p>
           </div>
         )}
 
-        {staff.map((member) => {
-          const active = activeByStaff.get(member.id);
-          const finished = finishedByStaff.get(member.id);
-          const isStarting = starting === member.id;
+        {/* Error general */}
+        {error && (
+          <p className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+            {error}
+          </p>
+        )}
 
-          let remaining = 0;
-          let timerState: 'normal' | 'warning' | 'overdue' = 'normal';
-          let progressPct = 0;
+        {/* ── Sección: En comida ─────────────────────────────────────────── */}
+        {activeBreaks.length > 0 && (
+          <section>
+            <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 mb-2">
+              En turno de comida ({activeBreaks.length})
+            </p>
+            <div className="space-y-2">
+              {activeBreaks.map((b) => {
+                const remaining = getRemaining(b.started_at, nowMs);
+                const isOverdue  = remaining < 0;
+                const isWarning  = !isOverdue && remaining <= WARNING_S;
+                const progressPct = Math.min(100, Math.max(0, ((DURATION_S - remaining) / DURATION_S) * 100));
 
-          if (active) {
-            remaining = getRemaining(active.started_at, nowMs);
-            timerState =
-              remaining <= 0
-                ? 'overdue'
-                : remaining <= WARNING_S
-                ? 'warning'
-                : 'normal';
-            progressPct = Math.min(
-              100,
-              Math.max(0, ((DURATION_S - remaining) / DURATION_S) * 100),
-            );
-          }
+                const cardBorder = isOverdue
+                  ? 'border-rose-700/60'
+                  : isWarning
+                  ? 'border-amber-700/50'
+                  : 'border-[#223530]';
 
-          const dotClass = active
-            ? timerState === 'overdue'
-              ? 'bg-red-500 animate-pulse'
-              : timerState === 'warning'
-              ? 'bg-amber-500'
-              : 'bg-emerald-500'
-            : finished
-            ? finished.status === 'excedido'
-              ? 'bg-red-800'
-              : 'bg-emerald-800'
-            : 'bg-[#223530]';
+                const timerColor = isOverdue
+                  ? 'text-rose-400 animate-pulse'
+                  : isWarning
+                  ? 'text-amber-400'
+                  : 'text-emerald-400';
 
-          return (
-            <div
-              key={member.id}
-              className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]"
-            >
-              <div className="px-4 py-3 flex items-center gap-3">
-                {/* Semaforo */}
-                <span className={`shrink-0 w-3 h-3 rounded-full ${dotClass}`} />
+                const barColor = isOverdue
+                  ? 'bg-rose-500'
+                  : isWarning
+                  ? 'bg-amber-500'
+                  : 'bg-emerald-500';
 
-                {/* Nombre */}
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-[#e6edea] leading-tight truncate">
-                    {member.name}
-                  </p>
-                  {active ? (
-                    <p className="text-[10px] text-[#7d9990] mt-0.5">
-                      Salio: {fmtTime(active.started_at)}
-                    </p>
-                  ) : finished ? (
-                    <p className="text-[10px] text-[#7d9990] mt-0.5">
-                      {fmtTime(finished.started_at)} &rarr;{' '}
-                      {fmtTime(finished.ended_at!)}
-                    </p>
-                  ) : (
-                    <p className="text-[10px] text-[#7d9990] mt-0.5 capitalize">
-                      {member.role}
-                    </p>
-                  )}
-                </div>
+                return (
+                  <div
+                    key={b.id}
+                    className={`bg-[#151D1A] rounded-2xl border ${cardBorder} overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]`}
+                  >
+                    <div className="px-4 py-3 flex items-center gap-3">
+                      {/* Semáforo */}
+                      <span className={`shrink-0 w-3 h-3 rounded-full ${
+                        isOverdue ? 'bg-rose-500 animate-pulse' : isWarning ? 'bg-amber-500' : 'bg-emerald-500'
+                      }`} />
 
-                {/* Timer o estado */}
-                <div className="shrink-0 text-right">
-                  {active ? (
-                    <span
-                      className={`font-mono font-black tabular-nums text-lg leading-none ${
-                        timerState === 'overdue'
-                          ? 'text-red-400 animate-pulse'
-                          : timerState === 'warning'
-                          ? 'text-amber-400'
-                          : 'text-emerald-400'
-                      }`}
-                    >
-                      {fmtTimer(remaining)}
-                    </span>
-                  ) : finished ? (
-                    <span
-                      className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                        finished.status === 'excedido'
-                          ? 'bg-red-950/60 border-red-800/50 text-red-300'
-                          : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300'
-                      }`}
-                    >
-                      {finished.status === 'excedido' ? 'Excedido' : '✓ OK'}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-[#7d9990]">Libre</span>
-                  )}
-                </div>
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold text-sm text-[#e6edea] leading-tight truncate">
+                          {b.staff_name}
+                        </p>
+                        <p className="text-[10px] text-[#7d9990] mt-0.5">
+                          Salió: {fmtTime(b.started_at)}
+                          {isOverdue && (
+                            <span className="ml-1 text-rose-400 font-semibold">
+                              · ¡TIEMPO EXCEDIDO!
+                            </span>
+                          )}
+                          {isWarning && (
+                            <span className="ml-1 text-amber-400 font-semibold">
+                              · Últimos 5 min
+                            </span>
+                          )}
+                        </p>
+                      </div>
 
-                {/* Boton de accion */}
-                <div className="shrink-0 ml-1">
-                  {active ? (
-                    <button
-                      onClick={() => handleEnd(active.id)}
-                      className={`min-h-[44px] px-3 rounded-xl text-xs font-bold border transition duration-150 ease-out active:scale-[0.98] select-none ${
-                        timerState === 'overdue'
-                          ? 'bg-red-900/60 border-red-700/80 text-red-200 hover:bg-red-800/60'
-                          : timerState === 'warning'
-                          ? 'bg-amber-900/60 border-amber-700/80 text-amber-200 hover:bg-amber-800/60'
-                          : 'bg-emerald-900/60 border-emerald-700/80 text-emerald-200 hover:bg-emerald-800/60'
-                      }`}
-                    >
-                      Regresar
-                    </button>
-                  ) : !finished ? (
-                    <button
-                      onClick={() => handleStart(member.id)}
-                      disabled={isStarting}
-                      className="min-h-[44px] px-3 rounded-xl text-xs font-bold bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white transition duration-150 ease-out select-none disabled:opacity-50"
-                    >
-                      {isStarting ? '...' : 'Comer'}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
+                      {/* Timer */}
+                      <span className={`font-mono font-black tabular-nums text-lg leading-none shrink-0 ${timerColor}`}>
+                        {fmtTimer(remaining)}
+                      </span>
 
-              {/* Barra de progreso (solo si activo) */}
-              {active && (
-                <div className="px-4 pb-3">
-                  <div className="h-1.5 bg-[#1c2b27] rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-1000 ${
-                        timerState === 'overdue'
-                          ? 'bg-red-500'
-                          : timerState === 'warning'
-                          ? 'bg-amber-500'
-                          : 'bg-emerald-500'
-                      }`}
-                      style={{ width: `${progressPct}%` }}
-                    />
+                      {/* Botón cerrar */}
+                      <button
+                        onClick={() => handleEnd(b.id)}
+                        disabled={ending === b.id}
+                        className={`shrink-0 min-h-[44px] px-3 rounded-xl text-xs font-bold border transition duration-150 ease-out active:scale-[0.98] select-none disabled:opacity-50 ${
+                          isOverdue
+                            ? 'bg-rose-900/60 border-rose-700/80 text-rose-200 hover:bg-rose-800/60'
+                            : isWarning
+                            ? 'bg-amber-900/60 border-amber-700/80 text-amber-200 hover:bg-amber-800/60'
+                            : 'bg-emerald-900/60 border-emerald-700/80 text-emerald-200 hover:bg-emerald-800/60'
+                        }`}
+                      >
+                        {ending === b.id
+                          ? '...'
+                          : isOverdue
+                          ? 'Cerrar tardío'
+                          : 'Regresar'}
+                      </button>
+                    </div>
+
+                    {/* Barra de progreso */}
+                    <div className="px-4 pb-3">
+                      <div className="h-1.5 bg-[#1c2b27] rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-1000 ${barColor}`}
+                          style={{ width: `${progressPct}%` }}
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })}
             </div>
-          );
-        })}
+          </section>
+        )}
+
+        {/* ── Sección: Personal en piso ──────────────────────────────────── */}
+        <section>
+          <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 mb-2">
+            Personal en piso ({staffInFloor.length})
+          </p>
+
+          {staffInFloor.length === 0 ? (
+            <div className="text-center py-8 text-[#7d9990] text-sm">
+              Todo el personal está en comida.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {staffInFloor.map((member) => {
+                const finished   = finishedByStaff.get(member.id);
+                const isStarting = starting === member.id;
+                const atCapacity = activeCount >= MAX_CONCURRENT;
+
+                return (
+                  <div
+                    key={member.id}
+                    className="bg-[#151D1A] rounded-2xl border border-[#223530] px-4 py-3 flex items-center gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.2)]"
+                  >
+                    {/* Indicador */}
+                    <span className={`shrink-0 w-3 h-3 rounded-full ${
+                      finished
+                        ? finished.status === 'excedido'
+                          ? 'bg-rose-800'
+                          : 'bg-emerald-800'
+                        : 'bg-[#223530]'
+                    }`} />
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-[#e6edea] leading-tight truncate">
+                        {member.name}
+                      </p>
+                      {finished ? (
+                        <p className="text-[10px] text-[#7d9990] mt-0.5">
+                          {fmtTime(finished.started_at)} → {fmtTime(finished.ended_at!)}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-[#7d9990] mt-0.5 capitalize">
+                          {member.role || 'en piso'}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Badge si ya comió */}
+                    {finished && (
+                      <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                        finished.status === 'excedido'
+                          ? 'bg-rose-950/60 border-rose-800/50 text-rose-300'
+                          : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300'
+                      }`}>
+                        {finished.status === 'excedido' ? 'Excedido' : '✓ OK'}
+                      </span>
+                    )}
+
+                    {/* Botón iniciar */}
+                    {!finished && (
+                      <button
+                        onClick={() => handleStart(member.id)}
+                        disabled={isStarting || atCapacity}
+                        title={atCapacity ? 'Capacidad al límite' : undefined}
+                        className="shrink-0 min-h-[44px] px-3 rounded-xl text-xs font-bold bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white transition duration-150 ease-out select-none disabled:opacity-40"
+                      >
+                        {isStarting ? '...' : atCapacity ? (
+                          <span className="flex items-center gap-1">
+                            <AlertTriangle size={11} strokeWidth={2} />
+                            Lleno
+                          </span>
+                        ) : 'Comer (30m)'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* Sin personal */}
+        {staff.length === 0 && (
+          <div className="text-center py-14 text-[#7d9990] text-sm">
+            Sin colaboradores activos registrados.
+          </div>
+        )}
       </main>
     </div>
   );

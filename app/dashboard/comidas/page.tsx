@@ -5,9 +5,10 @@ import ComidasClient, {
   type MealBreak,
 } from './ComidasClient';
 
-interface ProfileBasic {
+interface ProfileRow {
   id: string;
   name: string | null;
+  role: string | null;
 }
 
 interface MealBreakRow {
@@ -19,6 +20,9 @@ interface MealBreakRow {
   ended_at: string | null;
   status: string;
 }
+
+// Roles que toman comidas operativas
+const BREAK_ROLES = ['mesero', 'ayudante', 'hostess', 'barrero', 'encargado_barra'];
 
 export default async function ComidasPage() {
   const supabase = await createClient();
@@ -33,8 +37,9 @@ export default async function ComidasPage() {
   const [{ data: profilesData }, { data: breaksData }] = await Promise.all([
     supabase
       .from('profiles')
-      .select('id, name')
+      .select('id, name, role')
       .eq('active', true)
+      .in('role', BREAK_ROLES)
       .order('name'),
     supabase
       .from('meal_breaks')
@@ -43,10 +48,10 @@ export default async function ComidasPage() {
       .order('started_at', { ascending: false }),
   ]);
 
-  const staff: StaffMember[] = (profilesData ?? []).map((p: ProfileBasic) => ({
+  const staff: StaffMember[] = (profilesData ?? []).map((p: ProfileRow) => ({
     id: p.id,
     name: p.name ?? '(sin nombre)',
-    role: '',
+    role: p.role ?? '',
   }));
 
   const nameMap = new Map<string, string>(staff.map((s) => [s.id, s.name]));

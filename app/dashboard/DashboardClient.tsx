@@ -17,6 +17,7 @@ import {
   ChevronDown,
   AlertTriangle,
   CheckCircle2,
+  Coins,
 } from 'lucide-react';
 import { signOutAction } from './actions';
 
@@ -296,6 +297,13 @@ export default function DashboardClient({
                   <span className="text-xs text-[#7d9990]">{m.sub}</span>
                 </Link>
               ))}
+              {isManager && (
+                <Link href="/dashboard/propinas" className={CARD}>
+                  <Coins size={22} strokeWidth={1.5} className="text-[#E8899A] mb-2" />
+                  <span className="font-bold text-sm block text-[#e6edea]">Propinas</span>
+                  <span className="text-xs text-[#7d9990]">Capitanes de turno</span>
+                </Link>
+              )}
             </div>
           </section>
         </div>

@@ -34,6 +34,7 @@ export interface VentasClientProps {
   staff: StaffMember[];
   initialSales: SaleRecord[];
   isManager: boolean;
+  userRole: string;
   today: string;
 }
 
@@ -88,6 +89,7 @@ export default function VentasClient({
   staff,
   initialSales,
   isManager,
+  userRole,
   today,
 }: VentasClientProps) {
   const supabase = useMemo(() => createClient(), []);
@@ -161,10 +163,22 @@ export default function VentasClient({
   // ── Cierre de Caja state ────────────────────────────────────────────────
   const [formStaffId, setFormStaffId] = useState(staff[0]?.id ?? '');
   const [formShift, setFormShift] = useState<SaleShift>('Matutino');
+  const [formSaleDate, setFormSaleDate] = useState(today);
   const [formTotal, setFormTotal] = useState('');
   const [formSanctionPct, setFormSanctionPct] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
+  const [dateError, setDateError] = useState('');
+
+  // Compute min date for mesero (3 days back); managers have no limit
+  const minSaleDate = useMemo(() => {
+    if (userRole === 'mesero') {
+      const d = new Date(today + 'T00:00:00Z');
+      d.setUTCDate(d.getUTCDate() - 3);
+      return d.toISOString().split('T')[0];
+    }
+    return undefined;
+  }, [today, userRole]);
 
   const liveCalc = useMemo(() => {
     const n = parseFloat(formTotal);
@@ -209,10 +223,22 @@ export default function VentasClient({
     const rawTotal = parseFloat(formTotal);
     if (!isFinite(rawTotal) || rawTotal <= 0) return;
 
+    // Client-side date validation for mesero
+    if (userRole === 'mesero') {
+      const todayMs = new Date(today + 'T00:00:00Z').getTime();
+      const saleDateMs = new Date(formSaleDate + 'T00:00:00Z').getTime();
+      const diffDays = Math.floor((todayMs - saleDateMs) / 86_400_000);
+      if (diffDays > 3 || saleDateMs > todayMs) {
+        setDateError('Solo puedes registrar ventas de los últimos 3 días.');
+        return;
+      }
+    }
+    setDateError('');
+
     setSaving(true);
     try {
       const inserted = await submitSaleAction({
-        sale_date: today,
+        sale_date: formSaleDate,
         shift: formShift,
         staff_id: formStaffId,
         total: rawTotal,
@@ -221,7 +247,7 @@ export default function VentasClient({
 
       const record: SaleRecord = {
         id: inserted.id,
-        sale_date: today,
+        sale_date: formSaleDate,
         shift: formShift,
         staff_id: formStaffId,
         staff_name:
@@ -234,12 +260,15 @@ export default function VentasClient({
         sanction_pct: Number(inserted.sanction_pct) || 0,
         sanction_amount: Number(inserted.sanction_amount) || 0,
       };
-      setTodaySales((prev) => [record, ...prev]);
+      // Only add to today's list if sale date is today
+      if (formSaleDate === today) {
+        setTodaySales((prev) => [record, ...prev]);
+      }
       setFormTotal('');
       setFormSanctionPct('');
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2500);
-      setActiveTab('hoy');
+      if (formSaleDate === today) setActiveTab('hoy');
     } catch {
       // silent
     }
@@ -464,6 +493,32 @@ export default function VentasClient({
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Fecha */}
+            <div>
+              <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
+                Fecha
+              </label>
+              <input
+                type="date"
+                value={formSaleDate}
+                max={today}
+                min={minSaleDate}
+                onChange={(e) => {
+                  setFormSaleDate(e.target.value);
+                  setDateError('');
+                }}
+                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+              />
+              {dateError && (
+                <p className="text-xs text-red-400 mt-1">{dateError}</p>
+              )}
+              {formSaleDate !== today && (
+                <p className="text-xs text-amber-400 mt-1">
+                  Registrando venta para fecha pasada: {formSaleDate}
+                </p>
+              )}
             </div>
 
             {/* Teclado POS */}

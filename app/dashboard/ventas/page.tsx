@@ -88,7 +88,7 @@ export default async function VentasPage() {
     }),
   );
 
-  const meRole = (meData as ProfileWithRole | null)?.role ?? null;
+  const meRole = (meData as ProfileWithRole | null)?.role ?? 'mesero';
   const isManager = meRole === 'admin' || meRole === 'supervisor';
 
   return (
@@ -96,6 +96,7 @@ export default async function VentasPage() {
       staff={staff}
       initialSales={initialSales}
       isManager={isManager}
+      userRole={meRole}
       today={today}
     />
   );

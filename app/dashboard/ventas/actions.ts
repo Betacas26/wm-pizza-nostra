@@ -72,6 +72,16 @@ export async function submitSaleAction(data: SaleInput): Promise<SaleRow> {
     throw new Error('No autorizado: solo puedes registrar tu propia venta.');
   }
 
+  // Meseros: máximo 3 días hacia atrás; managers sin límite
+  if (!isManager) {
+    const todayMs = new Date(new Date().toISOString().split('T')[0] + 'T00:00:00Z').getTime();
+    const saleDateMs = new Date(data.sale_date + 'T00:00:00Z').getTime();
+    const diffDays = Math.floor((todayMs - saleDateMs) / 86_400_000);
+    if (diffDays > 3 || saleDateMs > todayMs) {
+      throw new Error('Solo puedes registrar ventas de los últimos 3 días.');
+    }
+  }
+
   // Recalcular server-side — el cliente no dicta valores financieros
   // Meseros nunca pueden aplicar sanción; solo managers
   const sanctionPct = isManager ? (data.sanction_pct ?? 0) : 0;

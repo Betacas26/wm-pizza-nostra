@@ -41,7 +41,7 @@ export interface VentasClientProps {
 
 
 // ── Constantes de negocio ──────────────────────────────────────────────────
-const APORTE_PCT = 4.5;
+const APORTE_PCT = 5;
 const CRISTALERIA = 10.0;
 const CAPITAN_PCT = 0.8;
 
@@ -846,7 +846,7 @@ export default function VentasClient({
                   className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
                 />
                 <p className="text-[11px] text-[#7d9990] mt-1">
-                  El 4.5% base siempre se entrega. El % adicional se registra aparte.
+                  El 5% base siempre se entrega. El % adicional se registra aparte.
                 </p>
               </div>
             )}

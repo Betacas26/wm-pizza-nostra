@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ChevronLeft } from 'lucide-react';
 import type { EvaluationRecord, EvaluationScore, CriterionRecord } from './actions';
 import {
@@ -506,6 +507,7 @@ export default function RubricasClient({
         >
           <ChevronLeft size={22} strokeWidth={2.5} />
         </Link>
+        <Image src="/icon-512.png" alt="" width={28} height={28} className="rounded-lg shrink-0" />
         <div className="flex-1 min-w-0">
           <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Rubricas

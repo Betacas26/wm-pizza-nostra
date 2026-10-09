@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ChevronLeft } from 'lucide-react';
 import MesasClient from './MesasClient';
 import type { MeseroData, AyudanteData } from './MesasClient';
@@ -65,6 +66,7 @@ export default async function MesasPage() {
         >
           <ChevronLeft size={22} strokeWidth={2.5} />
         </Link>
+        <Image src="/icon-512.png" alt="" width={28} height={28} className="rounded-lg shrink-0" />
         <div>
           <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Asignacion de Mesas

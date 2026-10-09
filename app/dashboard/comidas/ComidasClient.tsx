@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { ChevronLeft } from 'lucide-react';
 import { startMealBreakAction, endMealBreakAction } from './actions';
 
@@ -151,6 +152,7 @@ export default function ComidasClient({
         >
           <ChevronLeft size={22} strokeWidth={2.5} />
         </Link>
+        <Image src="/icon-512.png" alt="" width={28} height={28} className="rounded-lg shrink-0" />
         <div className="flex-1 min-w-0">
           <h1 className="font-extrabold text-[#E8899A] text-lg leading-tight">
             Comidas

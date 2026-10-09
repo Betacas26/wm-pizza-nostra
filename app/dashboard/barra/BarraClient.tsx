@@ -11,7 +11,7 @@ import {
   X,
   Trash2,
 } from 'lucide-react';
-import { updateInventoryStockAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
+import { updateInventoryStockAction, updateInventoryMinStockAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
 
 export interface InventoryItem {
   id: string;
@@ -71,6 +71,10 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [addError, setAddError] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Edit min_stock state
+  const [editingMinId, setEditingMinId] = useState<string | null>(null);
+  const [editingMinValue, setEditingMinValue] = useState('');
 
   const lowStock = inventory.filter((i) => i.stock < i.min_stock);
 
@@ -158,6 +162,19 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
       setAddError(err instanceof Error ? err.message : 'Error al agregar producto.');
     } finally {
       setAddSubmitting(false);
+    }
+  }
+
+  async function handleSaveMinStock(item: InventoryItem) {
+    const val = parseFloat(editingMinValue);
+    if (isNaN(val) || val < 0) { setEditingMinId(null); return; }
+    const prev = item.min_stock;
+    setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, min_stock: val } : i));
+    setEditingMinId(null);
+    try {
+      await updateInventoryMinStockAction(item.id, val);
+    } catch {
+      setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, min_stock: prev } : i));
     }
   }
 
@@ -355,18 +372,40 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
                                     <Trash2 size={12} strokeWidth={2} />
                                   </button>
                                 </div>
-                                <p className="text-[10px] mt-0.5 flex items-center gap-1">
-                                  {isLow ? (
-                                    <span className="text-amber-400 font-semibold flex items-center gap-0.5">
+                                <div className="mt-0.5 flex items-center gap-1">
+                                  {isLow && (
+                                    <span className="text-amber-400 font-semibold flex items-center gap-0.5 text-[10px]">
                                       <AlertTriangle size={10} strokeWidth={2.5} />
-                                      Bajo stock
-                                    </span>
-                                  ) : (
-                                    <span className="text-[#7d9990]">
-                                      Min: {item.min_stock} {item.unit}
+                                      Bajo stock ·&nbsp;
                                     </span>
                                   )}
-                                </p>
+                                  {editingMinId === item.id ? (
+                                    <form
+                                      onSubmit={(e) => { e.preventDefault(); handleSaveMinStock(item); }}
+                                      className="flex items-center gap-1"
+                                    >
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="0.25"
+                                        autoFocus
+                                        value={editingMinValue}
+                                        onChange={(e) => setEditingMinValue(e.target.value)}
+                                        className="w-16 bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-xs text-[#e6edea] focus:outline-none"
+                                      />
+                                      <button type="submit" className="text-[10px] font-bold text-emerald-400 px-1">✓</button>
+                                      <button type="button" onClick={() => setEditingMinId(null)} className="text-[10px] text-[#7d9990] px-1">✕</button>
+                                    </form>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingMinId(item.id); setEditingMinValue(String(item.min_stock)); }}
+                                      className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2"
+                                    >
+                                      Min: {item.min_stock} {item.unit}
+                                    </button>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Stock display */}

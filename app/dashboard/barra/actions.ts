@@ -62,6 +62,7 @@ export interface InventoryItem {
   product_name: string;
   category: string;
   unit: string;
+  bottle_ml: number;
   stock: number;
   min_stock: number;
 }
@@ -87,13 +88,13 @@ export async function addInventoryProductAction(params: {
       stock: params.stock,
       min_stock: params.min_stock,
     })
-    .select('id, product_name, category, unit, stock, min_stock')
+    .select('id, product_name, category, unit, bottle_ml, stock, min_stock')
     .single();
 
   if (error || !inserted) throw new Error(error?.message ?? 'Error al agregar producto.');
 
   const row = inserted as InventoryItem;
-  return row;
+  return { ...row, bottle_ml: row.bottle_ml ?? params.bottle_ml };
 }
 
 export async function deleteInventoryProductAction(inventoryId: string): Promise<void> {
@@ -126,6 +127,19 @@ export async function updateInventoryProductNameAction(
   const { error } = await admin
     .from('bar_inventory')
     .update({ product_name: newName.trim(), updated_at: new Date().toISOString() })
+    .eq('id', inventoryId);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateInventoryBottleMlAction(
+  inventoryId: string,
+  bottleMl: number,
+): Promise<void> {
+  await assertBarraRole();
+  const admin = createAdminClient();
+  const { error } = await admin
+    .from('bar_inventory')
+    .update({ bottle_ml: bottleMl, updated_at: new Date().toISOString() })
     .eq('id', inventoryId);
   if (error) throw new Error(error.message);
 }

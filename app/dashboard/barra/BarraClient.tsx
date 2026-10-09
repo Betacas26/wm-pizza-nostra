@@ -14,13 +14,14 @@ import {
   CalendarDays,
   BarChart2,
 } from 'lucide-react';
-import { updateInventoryStockAction, updateInventoryMinStockAction, updateInventoryProductNameAction, updateInventoryCategoryUnitAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
+import { updateInventoryStockAction, updateInventoryMinStockAction, updateInventoryBottleMlAction, updateInventoryProductNameAction, updateInventoryCategoryUnitAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
 
 export interface InventoryItem {
   id: string;
   product_name: string;
   category: string;
   unit: string;
+  bottle_ml: number;
   stock: number;
   min_stock: number;
 }
@@ -88,6 +89,10 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
   const [editingMetaId, setEditingMetaId] = useState<string | null>(null);
   const [editingCategory, setEditingCategory] = useState('');
   const [editingUnit, setEditingUnit] = useState('');
+
+  // Edit bottle_ml state
+  const [editingMlId, setEditingMlId] = useState<string | null>(null);
+  const [editingMlValue, setEditingMlValue] = useState('');
 
   const lowStock = inventory.filter((i) => i.stock < i.min_stock);
 
@@ -191,6 +196,19 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
       await updateInventoryCategoryUnitAction(item.id, editingCategory, editingUnit);
     } catch {
       setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, category: prevCat, unit: prevUnit } : i));
+    }
+  }
+
+  async function handleSaveBottleMl(item: InventoryItem) {
+    const val = parseInt(editingMlValue, 10);
+    if (isNaN(val) || val <= 0) { setEditingMlId(null); return; }
+    const prev = item.bottle_ml;
+    setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, bottle_ml: val } : i));
+    setEditingMlId(null);
+    try {
+      await updateInventoryBottleMlAction(item.id, val);
+    } catch {
+      setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, bottle_ml: prev } : i));
     }
   }
 
@@ -529,6 +547,49 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
                                       className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2"
                                     >
                                       {item.category} · {item.unit}
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Bottle ml inline edit */}
+                                <div className="mt-0.5">
+                                  {editingMlId === item.id ? (
+                                    <form
+                                      onSubmit={(e) => { e.preventDefault(); handleSaveBottleMl(item); }}
+                                      className="flex items-center gap-1 flex-wrap"
+                                    >
+                                      {[200,375,500,700,750,1000,1750].map((ml) => (
+                                        <button
+                                          key={ml}
+                                          type="button"
+                                          onClick={() => setEditingMlValue(String(ml))}
+                                          className={`h-6 px-2 rounded-md text-[10px] font-semibold transition select-none ${
+                                            editingMlValue === String(ml)
+                                              ? 'bg-[#7A1D2E] text-white'
+                                              : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990]'
+                                          }`}
+                                        >
+                                          {ml}
+                                        </button>
+                                      ))}
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        autoFocus
+                                        value={editingMlValue}
+                                        onChange={(e) => setEditingMlValue(e.target.value)}
+                                        className="w-16 bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-[10px] text-[#e6edea] focus:outline-none"
+                                      />
+                                      <button type="submit" className="text-[10px] font-bold text-emerald-400 px-1">✓</button>
+                                      <button type="button" onClick={() => setEditingMlId(null)} className="text-[10px] text-[#7d9990] px-1">✕</button>
+                                    </form>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingMlId(item.id); setEditingMlValue(String(item.bottle_ml)); }}
+                                      className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2"
+                                    >
+                                      {item.bottle_ml}ml
                                     </button>
                                   )}
                                 </div>

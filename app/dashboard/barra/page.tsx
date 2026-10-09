@@ -26,7 +26,7 @@ export default async function BarraPage() {
   const [{ data: inventoryData }, { data: mermasData }] = await Promise.all([
     supabase
       .from('bar_inventory')
-      .select('id, product_name, category, unit, stock, min_stock')
+      .select('id, product_name, category, unit, bottle_ml, stock, min_stock')
       .order('category')
       .order('product_name'),
     supabase
@@ -37,11 +37,12 @@ export default async function BarraPage() {
   ]);
 
   const inventory: InventoryItem[] = (inventoryData ?? []).map(
-    (r: { id: string; product_name: string; category: string; unit: string; stock: number; min_stock: number }) => ({
+    (r: { id: string; product_name: string; category: string; unit: string; bottle_ml: number | null; stock: number; min_stock: number }) => ({
       id: r.id,
       product_name: r.product_name,
       category: r.category,
       unit: r.unit,
+      bottle_ml: r.bottle_ml ?? 750,
       stock: Number(r.stock),
       min_stock: Number(r.min_stock),
     }),

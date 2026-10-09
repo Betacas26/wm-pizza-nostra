@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Coins,
+  Receipt,
 } from 'lucide-react';
 import { signOutAction } from './actions';
 
@@ -302,6 +303,13 @@ export default function DashboardClient({
                   <Coins size={22} strokeWidth={1.5} className="text-[#E8899A] mb-2" />
                   <span className="font-bold text-sm block text-[#e6edea]">Propinas</span>
                   <span className="text-xs text-[#7d9990]">Capitanes de turno</span>
+                </Link>
+              )}
+              {isManager && (
+                <Link href="/dashboard/sanciones" className={CARD}>
+                  <Receipt size={22} strokeWidth={1.5} className="text-[#E8899A] mb-2" />
+                  <span className="font-bold text-sm block text-[#e6edea]">Sanciones</span>
+                  <span className="text-xs text-[#7d9990]">Bonos y descuentos</span>
                 </Link>
               )}
             </div>

@@ -480,6 +480,58 @@ export default function VentasClient({
                 </div>
               ) : (
                 <div className="space-y-3">
+                  {/* ── Resumen global del día ── */}
+                  {(() => {
+                    const totalPzs = prodHistoryData.reduce((a, e) => a + e.totalItems, 0);
+                    const byProduct = new Map<string, { category: string; qty: number }>();
+                    for (const entry of prodHistoryData) {
+                      for (const item of entry.items) {
+                        const prev = byProduct.get(item.product_name);
+                        if (prev) prev.qty += item.quantity;
+                        else byProduct.set(item.product_name, { category: item.category, qty: item.quantity });
+                      }
+                    }
+                    const byCategory: Record<string, { product_name: string; qty: number }[]> = {};
+                    for (const [product_name, { category, qty }] of byProduct) {
+                      (byCategory[category] ??= []).push({ product_name, qty });
+                    }
+                    for (const items of Object.values(byCategory)) {
+                      items.sort((a, b) => b.qty - a.qty);
+                    }
+                    return (
+                      <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl overflow-hidden">
+                        <div className="px-4 py-3 flex items-center justify-between border-b border-[#9E2A3E]/30">
+                          <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider">
+                            Resumen del día
+                          </p>
+                          <span className="font-mono font-bold text-[#E8899A]">
+                            {totalPzs} pzs · {prodHistoryData.length} mesero{prodHistoryData.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                        {Object.entries(byCategory).map(([category, items]) => (
+                          <div key={category}>
+                            <p className="px-4 pt-2.5 pb-1 text-[10px] font-bold text-[#7d9990] uppercase tracking-wider">
+                              {category}
+                            </p>
+                            <ul className="divide-y divide-[#9E2A3E]/20">
+                              {items.map((item) => (
+                                <li
+                                  key={item.product_name}
+                                  className="px-4 py-2 flex items-center justify-between"
+                                >
+                                  <span className="text-sm text-[#e6edea]">{item.product_name}</span>
+                                  <span className="font-mono font-bold text-[#E8899A] text-sm">
+                                    ×{item.qty}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+
                   {prodHistoryData.map((entry) => {
                     const byCategory = entry.items.reduce<
                       Record<string, { product_name: string; quantity: number }[]>

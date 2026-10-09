@@ -2,10 +2,17 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { ChevronLeft, ChevronRight, Eraser, Printer } from 'lucide-react';
 import { assignTableAction, autoAssignDayAction } from './actions';
+import {
+  AREA_TABLES,
+  AREA_ORDER,
+  AREA_LABELS,
+  type Area,
+  dayAreaMap,
+} from '@/lib/mesas/assignment';
 
-// ── Tipos ───────────────────────────────────────────────────────────────────
-type Area = 'PB' | 'PA' | 'TE';
+// ── Tipos locales ────────────────────────────────────────────────────────────
 type Selection = string | 'delete' | null;
 
 export interface MeseroData {
@@ -19,21 +26,6 @@ export interface AyudanteData {
   name: string;
   home_area: string | null;
 }
-
-// ── Constantes ──────────────────────────────────────────────────────────────
-const AREA_TABLES: Record<Area, string[]> = {
-  PB: ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'BR'],
-  PA: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'PV'],
-  TE: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11'],
-};
-
-const AREA_ORDER: Area[] = ['PB', 'PA', 'TE'];
-
-const AREA_LABELS: Record<Area, string> = {
-  PB: 'Planta Baja',
-  PA: 'Planta Alta',
-  TE: 'Terraza',
-};
 
 const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mie', 'Jue', 'Vie', 'Sab'];
 
@@ -205,6 +197,9 @@ export default function MesasClient({
   const [activeArea, setActiveArea] = useState<Area>('PB');
   const [selected, setSelected] = useState<Selection>(null);
 
+  // Weekly rotation data: staffId → area → count of days
+  const [weeklyAreaCounts, setWeeklyAreaCounts] = useState<Map<string, Map<Area, number>>>(new Map());
+
   const colorMap = useMemo(
     () => new Map(meseros.map((m, i) => [m.id, i % STAFF_COLORS.length])),
     [meseros],
@@ -229,6 +224,34 @@ export default function MesasClient({
   useEffect(() => {
     loadDay(selectedDay);
   }, [selectedDay, loadDay]);
+
+  // Load all 7 days of the week to build rotation counts
+  useEffect(() => {
+    let cancelled = false;
+    async function loadWeek() {
+      const results = await Promise.all(
+        weekDays.map((day) =>
+          supabase
+            .from('table_assignments')
+            .select('table_code, staff_id')
+            .eq('day', day)
+            .then(({ data }) => (data ?? []) as { table_code: string; staff_id: string }[]),
+        ),
+      );
+      if (cancelled) return;
+      const counts = new Map<string, Map<Area, number>>();
+      for (const rows of results) {
+        for (const [staffId, area] of dayAreaMap(rows).entries()) {
+          if (!counts.has(staffId)) counts.set(staffId, new Map());
+          const m = counts.get(staffId)!;
+          m.set(area, (m.get(area) ?? 0) + 1);
+        }
+      }
+      setWeeklyAreaCounts(counts);
+    }
+    loadWeek();
+    return () => { cancelled = true; };
+  }, [weekDays, supabase]);
 
   function handleSelectDay(day: string) {
     setSelectedDay(day);
@@ -323,14 +346,14 @@ export default function MesasClient({
             onClick={handlePrevWeek}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-[#7d9990] hover:text-[#e6edea] hover:bg-[#1c2b27] transition"
           >
-            &#8592;
+            <ChevronLeft size={16} strokeWidth={2} />
           </button>
           <span className="text-xs font-bold text-[#e6edea]">{weekLabel}</span>
           <button
             onClick={handleNextWeek}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-[#7d9990] hover:text-[#e6edea] hover:bg-[#1c2b27] transition"
           >
-            &#8594;
+            <ChevronRight size={16} strokeWidth={2} />
           </button>
         </div>
 
@@ -377,9 +400,10 @@ export default function MesasClient({
         <button
           onClick={handlePrintWeek}
           disabled={printing}
-          className="shrink-0 h-9 px-3 rounded-xl border border-[#223530] bg-[#1c2b27] text-xs font-semibold text-[#7d9990] hover:text-[#e6edea] transition disabled:opacity-40"
+          className="shrink-0 h-9 px-3 rounded-xl border border-[#223530] bg-[#1c2b27] text-xs font-semibold text-[#7d9990] hover:text-[#e6edea] transition disabled:opacity-40 flex items-center gap-1.5"
         >
-          {printing ? 'Cargando...' : '⎙ PDF semana'}
+          <Printer size={13} strokeWidth={1.75} />
+          {printing ? 'Cargando...' : 'PDF semana'}
         </button>
       </div>
 
@@ -397,13 +421,14 @@ export default function MesasClient({
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
         <button
           onClick={() => setSelected((prev) => (prev === 'delete' ? null : 'delete'))}
-          className={`shrink-0 h-10 px-3 rounded-xl border font-bold text-sm transition duration-150 ease-out active:scale-[0.98] select-none ${
+          className={`shrink-0 h-10 px-3 rounded-xl border font-bold text-sm transition duration-150 ease-out active:scale-[0.98] select-none flex items-center gap-1.5 ${
             selected === 'delete'
               ? 'bg-red-900/60 border-red-600/80 text-red-200 ring-2 ring-red-400 scale-105'
               : 'bg-[#1c2b27] border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
           }`}
         >
-          ⌫ Borrar
+          <Eraser size={14} strokeWidth={1.75} />
+          Borrar
         </button>
 
         {meseros.length === 0 ? (
@@ -572,38 +597,27 @@ export default function MesasClient({
               </thead>
               <tbody className="divide-y divide-[#223530]">
                 {meseros.map((m) => {
-                  // Count days assigned per area across the week
-                  // We need weekly assignment data — use the current assignments for selectedDay only
-                  // as a proxy (full weekly count would require loading all 7 days)
-                  const assignedArea = (() => {
-                    let area: Area | null = null;
-                    for (const [tableCode, staffId] of assignments.entries()) {
-                      if (staffId !== m.id) continue;
-                      for (const [a, tables] of Object.entries(AREA_TABLES) as [Area, string[]][]) {
-                        if (tables.includes(tableCode)) { area = a; break; }
-                      }
-                      if (area) break;
-                    }
-                    return area;
-                  })();
-
+                  const areaCounts = weeklyAreaCounts.get(m.id);
                   return (
                     <tr key={m.id} className="hover:bg-[#1c2b27]/30">
                       <td className="sticky left-0 bg-[#151D1A] px-3 py-2 font-semibold text-[#e6edea] truncate max-w-[90px]">
                         {m.name.split(' ')[0]}
                       </td>
                       {AREA_ORDER.map((a) => {
-                        const isHere = assignedArea === a;
+                        const count = areaCounts?.get(a) ?? 0;
                         const isHome = m.home_area === a;
+                        const isOver = count > 2;
                         return (
                           <td key={a} className="px-3 py-2 text-center">
-                            {isHere ? (
+                            {count > 0 ? (
                               <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-[10px] font-bold ${
-                                isHome
-                                  ? 'bg-emerald-950/60 border border-emerald-700/50 text-emerald-300'
-                                  : 'bg-[#420F18]/60 border border-[#9E2A3E]/50 text-[#E8899A]'
+                                isOver
+                                  ? 'bg-rose-950/60 border border-rose-700/50 text-rose-300'
+                                  : isHome
+                                    ? 'bg-emerald-950/60 border border-emerald-700/50 text-emerald-300'
+                                    : 'bg-[#420F18]/60 border border-[#9E2A3E]/50 text-[#E8899A]'
                               }`}>
-                                {isHome ? 'H' : 'C'}
+                                {count}
                               </span>
                             ) : (
                               <span className="text-[#223530]">—</span>
@@ -617,14 +631,18 @@ export default function MesasClient({
               </tbody>
             </table>
           </div>
-          <div className="px-4 py-2 border-t border-[#223530] flex gap-3">
+          <div className="px-4 py-2 border-t border-[#223530] flex gap-3 flex-wrap">
             <span className="flex items-center gap-1 text-[10px] text-emerald-400">
-              <span className="w-4 h-4 rounded bg-emerald-950/60 border border-emerald-700/50 inline-flex items-center justify-center font-bold text-[8px]">H</span>
+              <span className="w-4 h-4 rounded bg-emerald-950/60 border border-emerald-700/50 inline-flex items-center justify-center font-bold text-[8px]">1</span>
               Home area
             </span>
             <span className="flex items-center gap-1 text-[10px] text-[#E8899A]">
-              <span className="w-4 h-4 rounded bg-[#420F18]/60 border border-[#9E2A3E]/50 inline-flex items-center justify-center font-bold text-[8px]">C</span>
+              <span className="w-4 h-4 rounded bg-[#420F18]/60 border border-[#9E2A3E]/50 inline-flex items-center justify-center font-bold text-[8px]">1</span>
               Cobertura
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-rose-400">
+              <span className="w-4 h-4 rounded bg-rose-950/60 border border-rose-700/50 inline-flex items-center justify-center font-bold text-[8px]">3</span>
+              Excede limite (max 2)
             </span>
           </div>
         </section>

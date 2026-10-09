@@ -1,55 +1,8 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-
-// ── Constantes compartidas ─────────────────────────────────────────────────
-type Area = 'PB' | 'PA' | 'TE';
-
-const AREA_TABLES: Record<Area, string[]> = {
-  PB: ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'BR'],
-  PA: ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9', 'PV'],
-  TE: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11'],
-};
-const AREA_ORDER: Area[] = ['PB', 'PA', 'TE'];
-
-interface Mesero { id: string; name: string; home_area: string | null }
-
-function computeAssignment(meseros: Mesero[]): Map<string, { tables: string[]; area: Area }> {
-  const byArea = new Map<Area, Mesero[]>([['PB', []], ['PA', []], ['TE', []]]);
-  const leftoverPool: Mesero[] = [];
-
-  for (const m of meseros) {
-    const area = m.home_area as Area;
-    if (AREA_ORDER.includes(area)) byArea.get(area)!.push(m);
-    else leftoverPool.push(m);
-  }
-
-  for (const area of AREA_ORDER) {
-    if (byArea.get(area)!.length === 0 && leftoverPool.length > 0) {
-      byArea.get(area)!.push(leftoverPool.shift()!);
-    }
-  }
-
-  let coverageIdx = 0;
-  while (leftoverPool.length > 0) {
-    const area = AREA_ORDER[coverageIdx % AREA_ORDER.length];
-    byArea.get(area)!.push(leftoverPool.shift()!);
-    coverageIdx++;
-  }
-
-  const result = new Map<string, { tables: string[]; area: Area }>();
-  for (const [area, workers] of byArea.entries()) {
-    if (workers.length === 0) continue;
-    for (const w of workers) result.set(w.id, { tables: [], area });
-    AREA_TABLES[area].forEach((table, idx) => {
-      const workerIdx = idx % workers.length;
-      result.get(workers[workerIdx].id)!.tables.push(table);
-    });
-  }
-  return result;
-}
+import { computeAssignment, AREA_ORDER, type Mesero } from '@/lib/mesas/assignment';
 
 export async function autoAssignDayAction(day: string): Promise<void> {
   const supabase = await verifyManager();

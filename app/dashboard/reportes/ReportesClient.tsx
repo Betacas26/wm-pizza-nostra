@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, Download, AlertTriangle, TrendingUp } from 'lucide-react';
 
-type ReportTab = 'general' | 'capitanes' | 'turnos' | 'barra';
+type ReportTab = 'general' | 'capitanes' | 'turnos' | 'productos' | 'sanciones' | 'barra';
 
 interface RawSale {
   sale_date: string;
@@ -44,6 +44,38 @@ interface DaySummary {
   ventas_total: number;
   captain_total: number;
   registros: number;
+}
+
+interface ProductSaleRow {
+  product_name: string;
+  category: string;
+  quantity: number;
+  amount: number;
+}
+
+interface ProductSummary {
+  product_name: string;
+  category: string;
+  total_qty: number;
+  total_amount: number;
+}
+
+interface SanctionRow {
+  id: string;
+  staff_id: string;
+  type: 'sancion' | 'bono';
+  amount: number;
+  concept: string;
+  record_date: string;
+}
+
+interface StaffSanctionSummary {
+  staff_id: string;
+  name: string;
+  bonos: number;
+  sanciones: number;
+  balance: number;
+  count: number;
 }
 
 interface BarItem {
@@ -121,6 +153,15 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   const [rawSales, setRawSales] = useState<RawSale[]>([]);
   const [nameMap, setNameMap] = useState<Map<string, string>>(new Map());
 
+  // Productos state
+  const [productSales, setProductSales] = useState<ProductSaleRow[]>([]);
+  const [prodLoading, setProdLoading] = useState(false);
+
+  // Sanciones state
+  const [sanctions, setSanctions] = useState<SanctionRow[]>([]);
+  const [sanctionNames, setSanctionNames] = useState<Map<string, string>>(new Map());
+  const [sanctionLoading, setSanctionLoading] = useState(false);
+
   // Barra state
   const [barInventory, setBarInventory] = useState<BarItem[]>([]);
   const [barMermas, setBarMermas] = useState<BarMerma[]>([]);
@@ -159,6 +200,55 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     [supabase],
   );
 
+  const loadProductos = useCallback(
+    async (from: string, to: string) => {
+      setProdLoading(true);
+      try {
+        const { data } = await supabase
+          .from('product_sales')
+          .select('product_name, category, quantity, amount')
+          .gte('sale_date', from)
+          .lte('sale_date', to);
+        setProductSales((data ?? []) as ProductSaleRow[]);
+      } catch { /* silent */ }
+      setProdLoading(false);
+    },
+    [supabase],
+  );
+
+  const loadSanciones = useCallback(
+    async (from: string, to: string) => {
+      setSanctionLoading(true);
+      try {
+        const { data: rows } = await supabase
+          .from('sanctions')
+          .select('id, staff_id, type, amount, concept, record_date')
+          .gte('record_date', from)
+          .lte('record_date', to)
+          .order('record_date', { ascending: false });
+        const raw = (rows ?? []) as SanctionRow[];
+        setSanctions(raw);
+        if (raw.length > 0) {
+          const ids = [...new Set(raw.map((s) => s.staff_id))];
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, name')
+            .in('id', ids);
+          setSanctionNames(
+            new Map(
+              (profiles ?? []).map((p: { id: string; name: string | null }) => [
+                p.id,
+                p.name ?? '(sin nombre)',
+              ]),
+            ),
+          );
+        }
+      } catch { /* silent */ }
+      setSanctionLoading(false);
+    },
+    [supabase],
+  );
+
   const loadBarra = useCallback(
     async (from: string, to: string) => {
       setBarLoading(true);
@@ -178,6 +268,12 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   );
 
   useEffect(() => { loadData(dateFrom, dateTo); }, [dateFrom, dateTo, loadData]);
+  useEffect(() => {
+    if (tab === 'productos') loadProductos(dateFrom, dateTo);
+  }, [tab, dateFrom, dateTo, loadProductos]);
+  useEffect(() => {
+    if (tab === 'sanciones') loadSanciones(dateFrom, dateTo);
+  }, [tab, dateFrom, dateTo, loadSanciones]);
   useEffect(() => {
     if (tab === 'barra') loadBarra(dateFrom, dateTo);
   }, [tab, dateFrom, dateTo, loadBarra]);
@@ -253,6 +349,66 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     count:          staffSummaries.reduce((a, s) => a + s.count, 0),
   }), [staffSummaries]);
 
+  // ── Derived: productos ──────────────────────────────────────────────────────
+  const productSummaries = useMemo((): ProductSummary[] => {
+    const m = new Map<string, ProductSummary>();
+    for (const p of productSales) {
+      const key = p.product_name;
+      const ex = m.get(key);
+      if (ex) {
+        ex.total_qty += Number(p.quantity) || 0;
+        ex.total_amount += Number(p.amount) || 0;
+      } else {
+        m.set(key, {
+          product_name: p.product_name,
+          category: p.category,
+          total_qty: Number(p.quantity) || 0,
+          total_amount: Number(p.amount) || 0,
+        });
+      }
+    }
+    return [...m.values()]
+      .map((x) => ({ ...x, total_qty: r2(x.total_qty), total_amount: r2(x.total_amount) }))
+      .sort((a, b) => b.total_qty - a.total_qty);
+  }, [productSales]);
+
+  const productCategories = useMemo(
+    () => Array.from(new Set(productSummaries.map((p) => p.category))),
+    [productSummaries],
+  );
+
+  // ── Derived: sanciones ──────────────────────────────────────────────────────
+  const staffSanctionSummaries = useMemo((): StaffSanctionSummary[] => {
+    const m = new Map<string, StaffSanctionSummary>();
+    for (const s of sanctions) {
+      const name = sanctionNames.get(s.staff_id) ?? s.staff_id;
+      const ex = m.get(s.staff_id);
+      const amount = Number(s.amount) || 0;
+      if (ex) {
+        if (s.type === 'bono') ex.bonos += amount;
+        else ex.sanciones += amount;
+        ex.balance = r2(ex.bonos - ex.sanciones);
+        ex.count++;
+      } else {
+        m.set(s.staff_id, {
+          staff_id: s.staff_id,
+          name,
+          bonos: s.type === 'bono' ? amount : 0,
+          sanciones: s.type === 'sancion' ? amount : 0,
+          balance: s.type === 'bono' ? amount : -amount,
+          count: 1,
+        });
+      }
+    }
+    return [...m.values()].sort((a, b) => b.balance - a.balance);
+  }, [sanctions, sanctionNames]);
+
+  const sanctionTotals = useMemo(() => ({
+    bonos: r2(staffSanctionSummaries.reduce((a, s) => a + s.bonos, 0)),
+    sanciones: r2(staffSanctionSummaries.reduce((a, s) => a + s.sanciones, 0)),
+    balance: r2(staffSanctionSummaries.reduce((a, s) => a + s.balance, 0)),
+  }), [staffSanctionSummaries]);
+
   // ── CSV Export ──────────────────────────────────────────────────────────────
   function handleExportCSV() {
     const range = fmtRange(dateFrom, dateTo).replace(/\s/g, '_');
@@ -282,6 +438,23 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         ],
         `turnos_${range}.csv`,
       );
+    } else if (tab === 'productos') {
+      exportCSV(
+        [
+          ['Producto', 'Categoria', 'Cantidad', 'Monto'],
+          ...productSummaries.map((p) => [p.product_name, p.category, String(p.total_qty), fmtMXN(p.total_amount)]),
+        ],
+        `productos_${range}.csv`,
+      );
+    } else if (tab === 'sanciones') {
+      exportCSV(
+        [
+          ['Colaborador', 'Bonos', 'Sanciones', 'Balance', 'Registros'],
+          ...staffSanctionSummaries.map((s) => [s.name, fmtMXN(s.bonos), fmtMXN(s.sanciones), fmtMXN(s.balance), String(s.count)]),
+          ['TOTAL', fmtMXN(sanctionTotals.bonos), fmtMXN(sanctionTotals.sanciones), fmtMXN(sanctionTotals.balance), ''],
+        ],
+        `sanciones_${range}.csv`,
+      );
     } else if (tab === 'barra') {
       exportCSV(
         [
@@ -297,6 +470,8 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     { key: 'general',   label: 'General' },
     { key: 'capitanes', label: 'Capitanes' },
     { key: 'turnos',    label: 'Turnos' },
+    { key: 'productos', label: 'Productos' },
+    { key: 'sanciones', label: 'Sanciones' },
     { key: 'barra',     label: 'Barra' },
   ];
 
@@ -329,17 +504,17 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         )}
       </header>
 
-      {/* Tab bar */}
-      <div className="bg-[#151D1A] border-b border-[#223530] sticky top-[57px] z-10 px-4 py-2">
-        <div className="p-1 bg-[#0a0f0e] rounded-xl flex">
+      {/* Tab bar — scrollable */}
+      <div className="bg-[#151D1A] border-b border-[#223530] sticky top-[57px] z-10 px-3 py-2">
+        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
           {TABS.map((t) => (
             <button
               key={t.key}
               onClick={() => setTab(t.key)}
-              className={`flex-1 h-9 rounded-lg text-xs font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
+              className={`shrink-0 h-9 px-4 rounded-xl text-xs font-semibold transition duration-150 ease-out active:scale-[0.98] select-none ${
                 tab === t.key
                   ? 'bg-[#7A1D2E] text-white shadow-sm'
-                  : 'text-[#7d9990] hover:text-[#e6edea]'
+                  : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
               }`}
             >
               {t.label}
@@ -640,6 +815,183 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                         </div>
                       </div>
                     )}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ══ PRODUCTOS ════════════════════════════════════════════════════ */}
+            {tab === 'productos' && (
+              <div className="space-y-3">
+                {prodLoading ? (
+                  <div className="text-center py-16 text-[#7d9990] text-sm">Cargando...</div>
+                ) : productSummaries.length === 0 ? (
+                  <div className="text-center py-12 text-[#7d9990] text-sm">Sin productos registrados en este periodo.</div>
+                ) : (
+                  <>
+                    {/* Summary */}
+                    <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl p-4">
+                      <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-3">
+                        Resumen · {productSummaries.length} productos
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-xs text-[#7d9990]">Unidades vendidas</p>
+                          <p className="font-mono font-bold text-[#e6edea]">
+                            {r2(productSummaries.reduce((a, p) => a + p.total_qty, 0))}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#7d9990]">Monto total</p>
+                          <p className="font-mono font-bold text-[#E8899A]">
+                            {fmtMXN(r2(productSummaries.reduce((a, p) => a + p.total_amount, 0)))}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {productCategories.map((cat) => {
+                      const items = productSummaries.filter((p) => p.category === cat);
+                      const maxQty = Math.max(...items.map((p) => p.total_qty), 0.01);
+                      return (
+                        <div key={cat}>
+                          <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 mb-1.5 capitalize">
+                            {cat}
+                          </p>
+                          <div className="bg-[#151D1A] rounded-2xl border border-[#223530] divide-y divide-[#223530] overflow-hidden">
+                            {items.map((p) => (
+                              <div key={p.product_name} className="px-4 py-3">
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <p className="flex-1 font-semibold text-sm text-[#e6edea] truncate">
+                                    {p.product_name}
+                                  </p>
+                                  <div className="shrink-0 text-right">
+                                    <p className="font-mono font-bold text-sm text-[#F5C2CB]">
+                                      {p.total_qty % 1 === 0 ? p.total_qty.toFixed(0) : p.total_qty.toFixed(2)} uds.
+                                    </p>
+                                    <p className="text-[10px] text-[#7d9990]">{fmtMXN(p.total_amount)}</p>
+                                  </div>
+                                </div>
+                                <div className="h-1.5 bg-[#1c2b27] rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-[#7A1D2E] rounded-full"
+                                    style={{ width: `${(p.total_qty / maxQty) * 100}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ══ SANCIONES ════════════════════════════════════════════════════ */}
+            {tab === 'sanciones' && (
+              <div className="space-y-3">
+                {sanctionLoading ? (
+                  <div className="text-center py-16 text-[#7d9990] text-sm">Cargando...</div>
+                ) : sanctions.length === 0 ? (
+                  <div className="text-center py-12 text-[#7d9990] text-sm">Sin sanciones o bonos en este periodo.</div>
+                ) : (
+                  <>
+                    {/* Summary */}
+                    <div className="bg-[#151D1A] border border-[#223530] rounded-2xl p-4">
+                      <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-3">
+                        Resumen · {sanctions.length} registros
+                      </p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-[#0a0f0e] rounded-xl p-3 text-center">
+                          <p className="font-mono font-bold text-emerald-400 text-lg leading-tight">
+                            {fmtMXN(sanctionTotals.bonos)}
+                          </p>
+                          <p className="text-[10px] text-[#7d9990] mt-0.5">Bonos</p>
+                        </div>
+                        <div className="bg-[#0a0f0e] rounded-xl p-3 text-center">
+                          <p className="font-mono font-bold text-rose-400 text-lg leading-tight">
+                            {fmtMXN(sanctionTotals.sanciones)}
+                          </p>
+                          <p className="text-[10px] text-[#7d9990] mt-0.5">Sanciones</p>
+                        </div>
+                        <div className="bg-[#0a0f0e] rounded-xl p-3 text-center">
+                          <p className={`font-mono font-bold text-lg leading-tight ${sanctionTotals.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {fmtMXN(sanctionTotals.balance)}
+                          </p>
+                          <p className="text-[10px] text-[#7d9990] mt-0.5">Balance</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Per staff */}
+                    {staffSanctionSummaries.length > 0 && (
+                      <>
+                        <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                          Por colaborador
+                        </p>
+                        {staffSanctionSummaries.map((s) => (
+                          <div key={s.staff_id} className="bg-[#151D1A] rounded-2xl border border-[#223530] px-4 py-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="font-bold text-sm text-[#e6edea]">{s.name}</p>
+                              <span className={`font-mono font-bold text-sm ${s.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {s.balance >= 0 ? '+' : ''}{fmtMXN(s.balance)}
+                              </span>
+                            </div>
+                            <div className="flex gap-4 text-xs">
+                              {s.bonos > 0 && (
+                                <div>
+                                  <span className="text-[#7d9990]">Bonos </span>
+                                  <span className="font-semibold text-emerald-400">{fmtMXN(s.bonos)}</span>
+                                </div>
+                              )}
+                              {s.sanciones > 0 && (
+                                <div>
+                                  <span className="text-[#7d9990]">Sanciones </span>
+                                  <span className="font-semibold text-rose-400">{fmtMXN(s.sanciones)}</span>
+                                </div>
+                              )}
+                              <div>
+                                <span className="text-[#7d9990]">{s.count} reg.</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Full record list */}
+                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1 pt-1">
+                      Detalle
+                    </p>
+                    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] divide-y divide-[#223530] overflow-hidden">
+                      {sanctions.map((s) => (
+                        <div key={s.id} className="px-4 py-3 flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                                s.type === 'bono'
+                                  ? 'bg-emerald-900/50 text-emerald-400'
+                                  : 'bg-rose-900/50 text-rose-400'
+                              }`}>
+                                {s.type === 'bono' ? 'BONO' : 'SANCIÓN'}
+                              </span>
+                              <p className="font-semibold text-sm text-[#e6edea] truncate">
+                                {sanctionNames.get(s.staff_id) ?? '—'}
+                              </p>
+                            </div>
+                            <p className="text-[10px] text-[#7d9990] mt-0.5 truncate">{s.concept}</p>
+                            <p className="text-[10px] text-[#7d9990]">{s.record_date}</p>
+                          </div>
+                          <p className={`font-mono font-bold text-sm shrink-0 ${
+                            s.type === 'bono' ? 'text-emerald-400' : 'text-rose-400'
+                          }`}>
+                            {s.type === 'bono' ? '+' : '-'}{fmtMXN(Number(s.amount))}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
                   </>
                 )}
               </div>

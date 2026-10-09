@@ -209,26 +209,64 @@ export default function VentasClient({
   // ── Ventas del dia ─────────────────────────────────────────────────────
   const [todaySales, setTodaySales] = useState<SaleRecord[]>(initialSales);
 
+  // ── Historial por fecha ─────────────────────────────────────────────────
+  const [historyDate, setHistoryDate]     = useState(today);
+  const [historySales, setHistorySales]   = useState<SaleRecord[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
+  const staffNameMap = useMemo(
+    () => new Map(staff.map((s) => [s.id, s.name])),
+    [staff],
+  );
+
+  useEffect(() => {
+    if (historyDate === today) return;
+    setHistoryLoading(true);
+    type SaleRow = {
+      id: string; sale_date: string; shift: string; staff_id: string;
+      total: number; contribution: number; glassware: number;
+      captain_tip: number; to_deliver: number;
+      sanction_pct: number; sanction_amount: number;
+    };
+    supabase
+      .from('sales')
+      .select('id, sale_date, shift, staff_id, total, contribution, glassware, captain_tip, to_deliver, sanction_pct, sanction_amount')
+      .eq('sale_date', historyDate)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setHistorySales(
+          ((data ?? []) as SaleRow[]).map((r) => ({
+            ...r,
+            shift: r.shift as SaleShift,
+            staff_name: staffNameMap.get(r.staff_id) ?? r.staff_id,
+          })),
+        );
+        setHistoryLoading(false);
+      });
+  }, [historyDate, today, supabase, staffNameMap]);
+
+  const displaySales = historyDate === today ? todaySales : historySales;
+
   const salesByStaff = useMemo(() => {
     const map = new Map<string, { name: string; sales: SaleRecord[] }>();
-    for (const s of todaySales) {
+    for (const s of displaySales) {
       if (!map.has(s.staff_id)) map.set(s.staff_id, { name: s.staff_name, sales: [] });
       map.get(s.staff_id)!.sales.push(s);
     }
     return [...map.values()].sort((a, b) =>
       a.name.localeCompare(b.name, 'es'),
     );
-  }, [todaySales]);
+  }, [displaySales]);
 
   const dayTotals = useMemo(() => {
     const r = (n: number) => Math.round(n * 100) / 100;
     return {
-      total: r(todaySales.reduce((a, s) => a + s.total, 0)),
-      to_deliver: r(todaySales.reduce((a, s) => a + s.to_deliver, 0)),
-      captain_tip: r(todaySales.reduce((a, s) => a + s.captain_tip, 0)),
-      sanction_amount: r(todaySales.reduce((a, s) => a + s.sanction_amount, 0)),
+      total: r(displaySales.reduce((a, s) => a + s.total, 0)),
+      to_deliver: r(displaySales.reduce((a, s) => a + s.to_deliver, 0)),
+      captain_tip: r(displaySales.reduce((a, s) => a + s.captain_tip, 0)),
+      sanction_amount: r(displaySales.reduce((a, s) => a + s.sanction_amount, 0)),
     };
-  }, [todaySales]);
+  }, [displaySales]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -672,9 +710,28 @@ export default function VentasClient({
         {/* ── Tab: Hoy ────────────────────────────────────────────────── */}
         {activeTab === 'hoy' && (
           <div className="space-y-3 pt-1">
-            {todaySales.length === 0 ? (
+            {/* Selector de fecha */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-[#7d9990] uppercase tracking-wider shrink-0">
+                Fecha
+              </label>
+              <input
+                type="date"
+                value={historyDate}
+                max={today}
+                min={minSaleDate}
+                onChange={(e) => setHistoryDate(e.target.value)}
+                className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+              />
+            </div>
+
+            {historyLoading ? (
+              <div className="text-center py-10 text-[#7d9990] text-sm">
+                Cargando...
+              </div>
+            ) : displaySales.length === 0 ? (
               <div className="text-center py-14 text-[#7d9990] text-sm">
-                Sin ventas registradas hoy.
+                Sin ventas registradas para esta fecha.
               </div>
             ) : (
               <>

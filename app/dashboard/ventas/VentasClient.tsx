@@ -209,6 +209,17 @@ export default function VentasClient({
   // ── Ventas del dia ─────────────────────────────────────────────────────
   const [todaySales, setTodaySales] = useState<SaleRecord[]>(initialSales);
 
+  const salesByStaff = useMemo(() => {
+    const map = new Map<string, { name: string; sales: SaleRecord[] }>();
+    for (const s of todaySales) {
+      if (!map.has(s.staff_id)) map.set(s.staff_id, { name: s.staff_name, sales: [] });
+      map.get(s.staff_id)!.sales.push(s);
+    }
+    return [...map.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, 'es'),
+    );
+  }, [todaySales]);
+
   const dayTotals = useMemo(() => {
     const r = (n: number) => Math.round(n * 100) / 100;
     return {
@@ -705,82 +716,114 @@ export default function VentasClient({
                   </div>
                 </div>
 
-                {todaySales.map((sale) => (
-                  <div
-                    key={sale.id}
-                    className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] p-4"
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-3">
-                      <div>
-                        <p className="font-bold text-[#e6edea] text-sm">
-                          {sale.staff_name}
-                        </p>
-                        <span
-                          className={`mt-1 inline-block text-xs px-2 py-0.5 rounded-full font-medium ${
-                            sale.shift === 'Matutino'
-                              ? 'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]'
-                              : 'bg-sky-950/60 border border-sky-700/50 text-sky-300'
-                          }`}
-                        >
-                          {sale.shift}
-                        </span>
+                {salesByStaff.map(({ name, sales }) => {
+                  const staffTotal     = sales.reduce((a, s) => a + s.total, 0);
+                  const staffDeliver   = sales.reduce((a, s) => a + s.to_deliver, 0);
+                  const staffCaptain   = sales.reduce((a, s) => a + s.captain_tip, 0);
+                  const staffSanction  = sales.reduce((a, s) => a + s.sanction_amount, 0);
+                  return (
+                    <div
+                      key={sales[0].staff_id}
+                      className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden"
+                    >
+                      {/* Cabecera del mesero */}
+                      <div className="px-4 py-3 flex items-center justify-between gap-2 border-b border-[#223530]">
+                        <div>
+                          <p className="font-bold text-[#e6edea] text-sm leading-tight">
+                            {name}
+                          </p>
+                          <p className="text-[10px] text-[#7d9990] mt-0.5">
+                            {sales.length} registro{sales.length !== 1 ? 's' : ''}
+                            {' · '}Venta: {fmtMXN(staffTotal)}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-[10px] text-[#7d9990]">A entregar</p>
+                          <p className="font-mono font-bold text-[#E8899A] text-base leading-tight">
+                            {fmtMXN(staffDeliver)}
+                          </p>
+                        </div>
                       </div>
-                      {isManager && (
-                        <button
-                          onClick={() => handleDelete(sale.id)}
-                          className="shrink-0 text-xs font-semibold text-red-500 hover:text-red-400 px-2 py-1 rounded-lg hover:bg-red-950/40 transition"
-                        >
-                          Eliminar
-                        </button>
-                      )}
-                    </div>
 
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
-                      <div className="flex justify-between">
-                        <span className="text-[#7d9990]">Venta</span>
-                        <span className="font-semibold text-[#e6edea]">
-                          {fmtMXN(sale.total)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#7d9990]">Aporte</span>
-                        <span className="font-semibold text-[#e6edea]">
-                          {fmtMXN(sale.contribution)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-[#7d9990]">Cristaleria</span>
-                        <span className="font-semibold text-[#e6edea]">
-                          {fmtMXN(sale.glassware)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="font-bold text-[#e6edea]">A entregar</span>
-                        <span className="font-bold text-[#E8899A]">
-                          {fmtMXN(sale.to_deliver)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between col-span-2 pt-1.5 mt-0.5 border-t border-[#223530]">
-                        <span className="text-[#7d9990] italic">
-                          Propina Cap. (info)
-                        </span>
-                        <span className="text-[#7d9990] italic">
-                          {fmtMXN(sale.captain_tip)}
-                        </span>
-                      </div>
-                      {sale.sanction_amount > 0 && (
-                        <div className="flex justify-between col-span-2 text-orange-400">
-                          <span className="font-semibold">
-                            Bono sancion ({sale.sanction_pct}%)
+                      {/* Filas de ventas */}
+                      <ul className="divide-y divide-[#1a2824]">
+                        {sales.map((sale) => (
+                          <li key={sale.id} className="px-4 py-3">
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <span
+                                className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                                  sale.shift === 'Matutino'
+                                    ? 'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]'
+                                    : 'bg-sky-950/60 border border-sky-700/50 text-sky-300'
+                                }`}
+                              >
+                                {sale.shift}
+                              </span>
+                              {isManager && (
+                                <button
+                                  onClick={() => handleDelete(sale.id)}
+                                  className="text-xs font-semibold text-red-500 hover:text-red-400 px-2 py-0.5 rounded-lg hover:bg-red-950/40 transition"
+                                >
+                                  Eliminar
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-[#7d9990]">Venta</span>
+                                <span className="font-semibold text-[#e6edea]">{fmtMXN(sale.total)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#7d9990]">Aporte</span>
+                                <span className="font-semibold text-[#e6edea]">{fmtMXN(sale.contribution)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[#7d9990]">Cristaleria</span>
+                                <span className="font-semibold text-[#e6edea]">{fmtMXN(sale.glassware)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="font-bold text-[#e6edea]">A entregar</span>
+                                <span className="font-bold text-[#E8899A]">{fmtMXN(sale.to_deliver)}</span>
+                              </div>
+                              <div className="flex justify-between col-span-2 pt-1 mt-0.5 border-t border-[#1a2824]">
+                                <span className="text-[#7d9990] italic">Propina Cap. (info)</span>
+                                <span className="text-[#7d9990] italic">{fmtMXN(sale.captain_tip)}</span>
+                              </div>
+                              {sale.sanction_amount > 0 && (
+                                <div className="flex justify-between col-span-2 text-orange-400">
+                                  <span className="font-semibold">Bono sanción ({sale.sanction_pct}%)</span>
+                                  <span className="font-bold">{fmtMXN(sale.sanction_amount)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+
+                      {/* Subtotal del mesero (solo si tiene >1 registro) */}
+                      {sales.length > 1 && (
+                        <div className="px-4 py-2.5 bg-[#0a0f0e]/60 border-t border-[#223530] flex items-center justify-between text-xs">
+                          <span className="font-bold text-[#7d9990] uppercase tracking-wide">
+                            Subtotal
                           </span>
-                          <span className="font-bold">
-                            {fmtMXN(sale.sanction_amount)}
-                          </span>
+                          <div className="flex gap-4">
+                            {staffSanction > 0 && (
+                              <span className="text-orange-400 font-semibold">
+                                Sanción: {fmtMXN(staffSanction)}
+                              </span>
+                            )}
+                            <span className="text-[#7d9990]">
+                              Cap.: {fmtMXN(staffCaptain)}
+                            </span>
+                            <span className="font-mono font-bold text-[#E8899A]">
+                              {fmtMXN(staffDeliver)}
+                            </span>
+                          </div>
                         </div>
                       )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </>
             )}
           </div>

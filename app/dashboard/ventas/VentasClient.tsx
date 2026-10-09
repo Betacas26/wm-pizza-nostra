@@ -105,6 +105,47 @@ export default function VentasClient({
   const [quantities, setQuantities] = useState<Map<string, number>>(new Map());
   const [prodSaving, setProdSaving] = useState(false);
   const [prodSavedMsg, setProdSavedMsg] = useState(false);
+  const [prodHistoryDate, setProdHistoryDate] = useState(today);
+  const [prodHistoryData, setProdHistoryData] = useState<{
+    staff_id: string;
+    staff_name: string;
+    items: { category: string; product_name: string; quantity: number }[];
+    totalItems: number;
+  }[]>([]);
+  const [prodHistoryLoading, setProdHistoryLoading] = useState(false);
+
+  useEffect(() => {
+    if (prodHistoryDate === today) return;
+    setProdHistoryLoading(true);
+    type PRow = { staff_id: string; category: string; product_name: string; quantity: number };
+    supabase
+      .from('product_sales')
+      .select('staff_id, category, product_name, quantity')
+      .eq('sale_date', prodHistoryDate)
+      .order('category')
+      .order('product_name')
+      .then(({ data }) => {
+        const rows = (data ?? []) as PRow[];
+        const map = new Map<string, { items: PRow[]; totalItems: number }>();
+        for (const r of rows) {
+          if (!map.has(r.staff_id)) map.set(r.staff_id, { items: [], totalItems: 0 });
+          const e = map.get(r.staff_id)!;
+          e.items.push(r);
+          e.totalItems += r.quantity;
+        }
+        setProdHistoryData(
+          [...map.entries()]
+            .map(([sid, val]) => ({
+              staff_id: sid,
+              staff_name: staff.find((s) => s.id === sid)?.name ?? sid,
+              items: val.items,
+              totalItems: val.totalItems,
+            }))
+            .sort((a, b) => a.staff_name.localeCompare(b.staff_name, 'es')),
+        );
+        setProdHistoryLoading(false);
+      });
+  }, [prodHistoryDate, today, supabase, staff]);
 
   useEffect(() => {
     supabase
@@ -414,111 +455,184 @@ export default function VentasClient({
         {/* ── Tab: Productos del Día ───────────────────────────────────── */}
         {activeTab === 'productos' && (
           <div className="space-y-4 pt-1">
-            {/* Mesero */}
-            <div>
-              <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
-                Mesero
+            {/* Selector de fecha */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-[#7d9990] uppercase tracking-wider shrink-0">
+                Fecha
               </label>
-              <select
-                value={prodStaffId}
-                onChange={(e) => setProdStaffId(e.target.value)}
-                className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
-              >
-                <option value="">Seleccionar...</option>
-                {staff.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
+              <input
+                type="date"
+                value={prodHistoryDate}
+                max={today}
+                min={minSaleDate}
+                onChange={(e) => setProdHistoryDate(e.target.value)}
+                className="flex-1 min-h-[40px] px-3 py-1.5 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+              />
             </div>
 
-            {/* Agregar producto */}
-            <div>
-              <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
-                Agregar producto
-              </label>
-              {dbProductsLoading ? (
-                <p className="text-xs text-[#7d9990] py-2">Cargando catalogo...</p>
-              ) : dbProducts.length === 0 ? (
-                <p className="text-xs text-[#7d9990] py-2">
-                  Sin productos activos.{' '}
-                  <a href="/dashboard/productos" className="text-[#E8899A] underline">
-                    Configurar en Productos
-                  </a>
-                </p>
+            {prodHistoryDate !== today ? (
+              /* ── Vista historial ── */
+              prodHistoryLoading ? (
+                <div className="text-center py-10 text-[#7d9990] text-sm">Cargando...</div>
+              ) : prodHistoryData.length === 0 ? (
+                <div className="text-center py-14 text-[#7d9990] text-sm">
+                  Sin productos registrados para esta fecha.
+                </div>
               ) : (
-                <div className="flex gap-2">
+                <div className="space-y-3">
+                  {prodHistoryData.map((entry) => {
+                    const byCategory = entry.items.reduce<
+                      Record<string, { product_name: string; quantity: number }[]>
+                    >((acc, item) => {
+                      (acc[item.category] ??= []).push(item);
+                      return acc;
+                    }, {});
+                    return (
+                      <div
+                        key={entry.staff_id}
+                        className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden"
+                      >
+                        <div className="px-4 py-3 flex items-center justify-between border-b border-[#223530]">
+                          <p className="font-bold text-[#e6edea] text-sm">{entry.staff_name}</p>
+                          <span className="font-mono font-bold text-[#E8899A] text-sm">
+                            {entry.totalItems} pzs
+                          </span>
+                        </div>
+                        {Object.entries(byCategory).map(([category, items]) => (
+                          <div key={category}>
+                            <p className="px-4 pt-2.5 pb-1 text-[10px] font-bold text-[#7d9990] uppercase tracking-wider">
+                              {category}
+                            </p>
+                            <ul className="divide-y divide-[#1a2824]">
+                              {items.map((item) => (
+                                <li
+                                  key={item.product_name}
+                                  className="px-4 py-2.5 flex items-center justify-between"
+                                >
+                                  <span className="text-sm text-[#e6edea]">{item.product_name}</span>
+                                  <span className="font-mono font-bold text-[#E8899A] text-sm">
+                                    ×{item.quantity}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )
+            ) : (
+              /* ── Formulario de hoy ── */
+              <>
+                {/* Mesero */}
+                <div>
+                  <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
+                    Mesero
+                  </label>
                   <select
-                    value={selectedProductName}
-                    onChange={(e) => setSelectedProductName(e.target.value)}
-                    className="flex-1 min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+                    value={prodStaffId}
+                    onChange={(e) => setProdStaffId(e.target.value)}
+                    className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
                   >
-                    {dbProducts.map((p) => (
-                      <option key={p.id} value={p.name}>{p.name}</option>
+                    <option value="">Seleccionar...</option>
+                    {staff.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
-                  <button
-                    type="button"
-                    onClick={handleAddProduct}
-                    disabled={!selectedProductName}
-                    className="shrink-0 min-h-[44px] px-4 bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out disabled:opacity-40 text-sm"
-                  >
-                    + Agregar
-                  </button>
                 </div>
-              )}
-            </div>
 
-            {/* Lista de productos agregados */}
-            {quantities.size > 0 && (
-              <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
-                <div className="px-4 py-2.5 border-b border-[#223530]">
-                  <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
-                    Productos seleccionados
-                  </p>
+                {/* Agregar producto */}
+                <div>
+                  <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
+                    Agregar producto
+                  </label>
+                  {dbProductsLoading ? (
+                    <p className="text-xs text-[#7d9990] py-2">Cargando catalogo...</p>
+                  ) : dbProducts.length === 0 ? (
+                    <p className="text-xs text-[#7d9990] py-2">
+                      Sin productos activos.{' '}
+                      <a href="/dashboard/productos" className="text-[#E8899A] underline">
+                        Configurar en Productos
+                      </a>
+                    </p>
+                  ) : (
+                    <div className="flex gap-2">
+                      <select
+                        value={selectedProductName}
+                        onChange={(e) => setSelectedProductName(e.target.value)}
+                        className="flex-1 min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-sm focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
+                      >
+                        {dbProducts.map((p) => (
+                          <option key={p.id} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={handleAddProduct}
+                        disabled={!selectedProductName}
+                        className="shrink-0 min-h-[44px] px-4 bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out disabled:opacity-40 text-sm"
+                      >
+                        + Agregar
+                      </button>
+                    </div>
+                  )}
                 </div>
-                <ul className="divide-y divide-[#223530]">
-                  {[...quantities.entries()].map(([productName, qty]) => (
-                    <li key={productName} className="px-4 py-3 flex items-center gap-3">
-                      <p className="flex-1 text-sm font-medium text-[#e6edea] min-w-0 leading-tight">
-                        {productName}
+
+                {/* Lista de productos agregados */}
+                {quantities.size > 0 && (
+                  <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.2)]">
+                    <div className="px-4 py-2.5 border-b border-[#223530]">
+                      <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
+                        Productos seleccionados
                       </p>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          type="button"
-                          onClick={() => changeQty(productName, -1)}
-                          className="w-9 h-9 rounded-xl bg-[#1c2b27] border border-[#223530] text-[#e6edea] font-bold text-lg flex items-center justify-center active:scale-[0.95] transition"
-                        >
-                          −
-                        </button>
-                        <span className="w-7 text-center font-mono font-bold text-base text-[#E8899A]">
-                          {qty}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => changeQty(productName, 1)}
-                          className="w-9 h-9 rounded-xl bg-[#7A1D2E] border border-[#9E2A3E]/60 text-white font-bold text-lg flex items-center justify-center active:scale-[0.95] transition"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-                <div className="px-4 py-2.5 border-t border-[#223530] flex justify-between items-center">
-                  <span className="text-xs text-[#7d9990]">Total</span>
-                  <span className="font-mono font-bold text-[#E8899A]">{totalItems} piezas</span>
-                </div>
-              </div>
-            )}
+                    </div>
+                    <ul className="divide-y divide-[#223530]">
+                      {[...quantities.entries()].map(([productName, qty]) => (
+                        <li key={productName} className="px-4 py-3 flex items-center gap-3">
+                          <p className="flex-1 text-sm font-medium text-[#e6edea] min-w-0 leading-tight">
+                            {productName}
+                          </p>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => changeQty(productName, -1)}
+                              className="w-9 h-9 rounded-xl bg-[#1c2b27] border border-[#223530] text-[#e6edea] font-bold text-lg flex items-center justify-center active:scale-[0.95] transition"
+                            >
+                              −
+                            </button>
+                            <span className="w-7 text-center font-mono font-bold text-base text-[#E8899A]">
+                              {qty}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => changeQty(productName, 1)}
+                              className="w-9 h-9 rounded-xl bg-[#7A1D2E] border border-[#9E2A3E]/60 text-white font-bold text-lg flex items-center justify-center active:scale-[0.95] transition"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="px-4 py-2.5 border-t border-[#223530] flex justify-between items-center">
+                      <span className="text-xs text-[#7d9990]">Total</span>
+                      <span className="font-mono font-bold text-[#E8899A]">{totalItems} piezas</span>
+                    </div>
+                  </div>
+                )}
 
-            <button
-              type="button"
-              onClick={handleSaveProductos}
-              disabled={prodSaving || !prodStaffId || quantities.size === 0}
-              className="w-full min-h-[52px] bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm disabled:opacity-40"
-            >
-              {prodSaving ? 'Guardando...' : 'Guardar productos del dia'}
-            </button>
+                <button
+                  type="button"
+                  onClick={handleSaveProductos}
+                  disabled={prodSaving || !prodStaffId || quantities.size === 0}
+                  className="w-full min-h-[52px] bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm disabled:opacity-40"
+                >
+                  {prodSaving ? 'Guardando...' : 'Guardar productos del dia'}
+                </button>
+              </>
+            )}
           </div>
         )}
 

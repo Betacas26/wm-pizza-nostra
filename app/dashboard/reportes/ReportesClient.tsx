@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, Download, AlertTriangle, TrendingUp } from 'lucide-react';
 
-type ReportTab = 'general' | 'capitanes' | 'turnos' | 'productos' | 'sanciones' | 'barra';
+type ReportTab = 'general' | 'capitanes' | 'turnos' | 'productos' | 'sanciones' | 'checklist' | 'barra';
 
 interface RawSale {
   sale_date: string;
@@ -76,6 +76,17 @@ interface StaffSanctionSummary {
   sanciones: number;
   balance: number;
   count: number;
+}
+
+interface ClosingRow {
+  id: string;
+  closing_date: string;
+  area: string;
+  type: 'apertura' | 'cierre';
+  staff_name: string;
+  total_items: number;
+  checked_items: number;
+  completed_at: string;
 }
 
 interface BarDiarioRow {
@@ -183,6 +194,10 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   const [sanctionNames, setSanctionNames] = useState<Map<string, string>>(new Map());
   const [sanctionLoading, setSanctionLoading] = useState(false);
 
+  // Checklist state
+  const [closings, setClosings] = useState<ClosingRow[]>([]);
+  const [checklistLoading, setChecklistLoading] = useState(false);
+
   // Barra state
   const [barInventory, setBarInventory] = useState<BarItem[]>([]);
   const [barMermas, setBarMermas] = useState<BarMerma[]>([]);
@@ -271,6 +286,25 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     [supabase],
   );
 
+  const loadChecklist = useCallback(
+    async (from: string, to: string) => {
+      setChecklistLoading(true);
+      try {
+        const { data } = await supabase
+          .from('closings')
+          .select('id, closing_date, area, type, staff_name, total_items, checked_items, completed_at')
+          .gte('closing_date', from)
+          .lte('closing_date', to)
+          .not('completed_at', 'is', null)
+          .order('closing_date', { ascending: false })
+          .order('completed_at', { ascending: false });
+        setClosings((data ?? []) as ClosingRow[]);
+      } catch { /* silent */ }
+      setChecklistLoading(false);
+    },
+    [supabase],
+  );
+
   const loadBarra = useCallback(
     async (from: string, to: string) => {
       setBarLoading(true);
@@ -298,6 +332,9 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     if (tab === 'sanciones') loadSanciones(dateFrom, dateTo);
   }, [tab, dateFrom, dateTo, loadSanciones]);
+  useEffect(() => {
+    if (tab === 'checklist') loadChecklist(dateFrom, dateTo);
+  }, [tab, dateFrom, dateTo, loadChecklist]);
   useEffect(() => {
     if (tab === 'barra') loadBarra(dateFrom, dateTo);
   }, [tab, dateFrom, dateTo, loadBarra]);
@@ -433,6 +470,38 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     balance: r2(staffSanctionSummaries.reduce((a, s) => a + s.balance, 0)),
   }), [staffSanctionSummaries]);
 
+  // ── Derived: checklist ──────────────────────────────────────────────────────
+  const checklistDayRows = useMemo(() => {
+    const m = new Map<string, { date: string; apertura: ClosingRow[]; cierre: ClosingRow[] }>();
+    for (const c of closings) {
+      if (!m.has(c.closing_date)) m.set(c.closing_date, { date: c.closing_date, apertura: [], cierre: [] });
+      m.get(c.closing_date)![c.type].push(c);
+    }
+    return [...m.values()].sort((a, b) => b.date.localeCompare(a.date));
+  }, [closings]);
+
+  const checklistStaffRows = useMemo(() => {
+    const m = new Map<string, { name: string; count: number; totalPct: number }>();
+    for (const c of closings) {
+      const pct = c.total_items > 0 ? (c.checked_items / c.total_items) * 100 : 100;
+      const ex = m.get(c.staff_name);
+      if (ex) { ex.count++; ex.totalPct += pct; }
+      else m.set(c.staff_name, { name: c.staff_name, count: 1, totalPct: pct });
+    }
+    return [...m.values()]
+      .map((x) => ({ ...x, avgPct: Math.round(x.totalPct / x.count) }))
+      .sort((a, b) => b.count - a.count);
+  }, [closings]);
+
+  const checklistTotals = useMemo(() => ({
+    total: closings.length,
+    apertura: closings.filter((c) => c.type === 'apertura').length,
+    cierre: closings.filter((c) => c.type === 'cierre').length,
+    avgPct: closings.length > 0
+      ? Math.round(closings.reduce((s, c) => s + (c.total_items > 0 ? (c.checked_items / c.total_items) * 100 : 100), 0) / closings.length)
+      : 0,
+  }), [closings]);
+
   // ── Derived: bar consumption ────────────────────────────────────────────────
   const barConsumedProducts = useMemo((): BarConsumedProduct[] => {
     type EntryMap = Map<string, { closed_bottles: number; open_fraction: number; product_name: string; category: string; bottle_ml: number }>;
@@ -535,6 +604,22 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         ],
         `sanciones_${range}.csv`,
       );
+    } else if (tab === 'checklist') {
+      exportCSV(
+        [
+          ['Fecha', 'Tipo', 'Área', 'Responsable', 'Ítems', 'Completados', '% Completado'],
+          ...closings.map((c) => [
+            c.closing_date,
+            c.type,
+            c.area,
+            c.staff_name,
+            String(c.total_items),
+            String(c.checked_items),
+            `${c.total_items > 0 ? Math.round((c.checked_items / c.total_items) * 100) : 100}%`,
+          ]),
+        ],
+        `checklist_${range}.csv`,
+      );
     } else if (tab === 'barra') {
       exportCSV(
         [
@@ -551,8 +636,9 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     { key: 'capitanes', label: 'Capitanes' },
     { key: 'turnos',    label: 'Turnos' },
     { key: 'productos', label: 'Productos' },
-    { key: 'sanciones', label: 'Sanciones' },
-    { key: 'barra',     label: 'Barra' },
+    { key: 'sanciones',  label: 'Sanciones' },
+    { key: 'checklist',  label: 'Checklist' },
+    { key: 'barra',      label: 'Barra' },
   ];
 
   const hasData = rawSales.length > 0;
@@ -1071,6 +1157,143 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                           </p>
                         </div>
                       ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ══ CHECKLIST ════════════════════════════════════════════════════ */}
+            {tab === 'checklist' && (
+              <div className="space-y-3">
+                {checklistLoading ? (
+                  <div className="text-center py-16 text-[#7d9990] text-sm">Cargando...</div>
+                ) : closings.length === 0 ? (
+                  <div className="text-center py-12 text-[#7d9990] text-sm">Sin revisiones en este periodo.</div>
+                ) : (
+                  <>
+                    {/* Summary card */}
+                    <div className="bg-[#151D1A] border border-[#223530] rounded-2xl p-4">
+                      <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-3">
+                        Resumen · {checklistDayRows.length} días
+                      </p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          { label: 'Total', value: checklistTotals.total, color: 'text-[#E8899A]' },
+                          { label: 'Apertura', value: checklistTotals.apertura, color: 'text-emerald-400' },
+                          { label: 'Cierre', value: checklistTotals.cierre, color: 'text-sky-400' },
+                          { label: 'Avg %', value: `${checklistTotals.avgPct}%`, color: checklistTotals.avgPct >= 80 ? 'text-emerald-400' : 'text-amber-400' },
+                        ].map((item) => (
+                          <div key={item.label} className="bg-[#0a0f0e] rounded-xl p-2.5 text-center">
+                            <p className={`font-mono font-bold text-lg leading-tight ${item.color}`}>{item.value}</p>
+                            <p className="text-[10px] text-[#7d9990] mt-0.5">{item.label}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Per-day compliance */}
+                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                      Cumplimiento por día
+                    </p>
+                    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden">
+                      <div className="grid grid-cols-3 px-4 py-2 border-b border-[#223530] bg-[#0a0f0e]">
+                        <span className="text-[10px] font-bold text-[#7d9990] uppercase">Fecha</span>
+                        <span className="text-[10px] font-bold text-emerald-400 uppercase text-center">Apertura</span>
+                        <span className="text-[10px] font-bold text-sky-400 uppercase text-center">Cierre</span>
+                      </div>
+                      {checklistDayRows.map((day, i) => {
+                        const apPct = day.apertura.length > 0
+                          ? Math.round(day.apertura.reduce((s, c) => s + (c.total_items > 0 ? (c.checked_items / c.total_items) * 100 : 100), 0) / day.apertura.length)
+                          : null;
+                        const ciPct = day.cierre.length > 0
+                          ? Math.round(day.cierre.reduce((s, c) => s + (c.total_items > 0 ? (c.checked_items / c.total_items) * 100 : 100), 0) / day.cierre.length)
+                          : null;
+                        return (
+                          <div
+                            key={day.date}
+                            className={`grid grid-cols-3 px-4 py-2.5 items-center ${i < checklistDayRows.length - 1 ? 'border-b border-[#223530]' : ''}`}
+                          >
+                            <span className="text-xs text-[#e6edea] font-mono">{day.date.slice(5)}</span>
+                            <div className="text-center">
+                              {apPct !== null ? (
+                                <span className={`text-xs font-bold ${apPct >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                  {apPct}%
+                                  <span className="text-[10px] text-[#7d9990] font-normal ml-1">×{day.apertura.length}</span>
+                                </span>
+                              ) : (
+                                <span className="text-xs text-[#4a6560]">—</span>
+                              )}
+                            </div>
+                            <div className="text-center">
+                              {ciPct !== null ? (
+                                <span className={`text-xs font-bold ${ciPct >= 80 ? 'text-sky-400' : 'text-amber-400'}`}>
+                                  {ciPct}%
+                                  <span className="text-[10px] text-[#7d9990] font-normal ml-1">×{day.cierre.length}</span>
+                                </span>
+                              ) : (
+                                <span className="text-xs text-[#4a6560]">—</span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Per-staff */}
+                    {checklistStaffRows.length > 1 && (
+                      <>
+                        <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                          Por colaborador
+                        </p>
+                        <div className="bg-[#151D1A] rounded-2xl border border-[#223530] divide-y divide-[#223530] overflow-hidden">
+                          {checklistStaffRows.map((s) => (
+                            <div key={s.name} className="flex items-center gap-3 px-4 py-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm text-[#e6edea] truncate">{s.name}</p>
+                                <p className="text-[10px] text-[#7d9990]">{s.count} revisión{s.count !== 1 ? 'es' : ''}</p>
+                              </div>
+                              <span className={`font-mono font-bold text-sm shrink-0 ${s.avgPct >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {s.avgPct}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Detail list */}
+                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                      Detalle
+                    </p>
+                    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] divide-y divide-[#223530] overflow-hidden">
+                      {closings.map((c) => {
+                        const pct = c.total_items > 0 ? Math.round((c.checked_items / c.total_items) * 100) : 100;
+                        return (
+                          <div key={c.id} className="flex items-center gap-3 px-4 py-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                                  c.type === 'apertura'
+                                    ? 'bg-emerald-900/50 text-emerald-400'
+                                    : 'bg-sky-900/50 text-sky-400'
+                                }`}>
+                                  {c.type.toUpperCase()}
+                                </span>
+                                <span className="text-[10px] text-[#7d9990] capitalize">{c.area}</span>
+                              </div>
+                              <p className="font-semibold text-sm text-[#e6edea] truncate">{c.staff_name}</p>
+                              <p className="text-[10px] text-[#7d9990]">{c.closing_date}</p>
+                            </div>
+                            <div className="shrink-0 text-right">
+                              <p className={`font-mono font-bold text-sm ${pct >= 80 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                                {pct}%
+                              </p>
+                              <p className="text-[10px] text-[#7d9990]">{c.checked_items}/{c.total_items}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 )}

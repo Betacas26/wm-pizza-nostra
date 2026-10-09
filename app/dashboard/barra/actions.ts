@@ -70,6 +70,7 @@ export async function addInventoryProductAction(params: {
   product_name: string;
   category: string;
   unit: string;
+  bottle_ml: number;
   stock: number;
   min_stock: number;
 }): Promise<InventoryItem> {
@@ -82,6 +83,7 @@ export async function addInventoryProductAction(params: {
       product_name: params.product_name.trim(),
       category: params.category.trim(),
       unit: params.unit.trim(),
+      bottle_ml: params.bottle_ml,
       stock: params.stock,
       min_stock: params.min_stock,
     })

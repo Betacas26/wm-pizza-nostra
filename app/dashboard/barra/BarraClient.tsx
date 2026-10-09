@@ -69,6 +69,7 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
   const [addName, setAddName] = useState('');
   const [addCategory, setAddCategory] = useState('licores');
   const [addUnit, setAddUnit] = useState('botellas');
+  const [addBottleMl, setAddBottleMl] = useState('750');
   const [addStock, setAddStock] = useState('0');
   const [addMinStock, setAddMinStock] = useState('1');
   const [addSubmitting, setAddSubmitting] = useState(false);
@@ -155,6 +156,8 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
     const minStock = parseFloat(addMinStock);
     if (isNaN(stock) || stock < 0) { setAddError('Stock inicial inválido.'); return; }
     if (isNaN(minStock) || minStock < 0) { setAddError('Stock mínimo inválido.'); return; }
+    const bottleMl = parseInt(addBottleMl, 10);
+    if (isNaN(bottleMl) || bottleMl <= 0) { setAddError('Mililitros inválidos.'); return; }
 
     setAddSubmitting(true);
     try {
@@ -162,11 +165,13 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
         product_name: addName,
         category: addCategory,
         unit: addUnit,
+        bottle_ml: bottleMl,
         stock,
         min_stock: minStock,
       });
       setInventory((prev) => [...prev, newItem]);
       setAddName('');
+      setAddBottleMl('750');
       setAddStock('0');
       setAddMinStock('1');
       setShowAddForm(false);
@@ -364,6 +369,37 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
                       ))}
                     </select>
                   </div>
+                  {/* Bottle ml selector */}
+                  <div>
+                    <label className="block text-[10px] text-[#7d9990] mb-1.5 uppercase tracking-wider">
+                      Mililitros por botella
+                    </label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {[200, 375, 500, 700, 750, 1000, 1750].map((ml) => (
+                        <button
+                          key={ml}
+                          type="button"
+                          onClick={() => setAddBottleMl(String(ml))}
+                          className={`h-8 px-3 rounded-lg text-xs font-semibold transition active:scale-[0.95] select-none ${
+                            addBottleMl === String(ml)
+                              ? 'bg-[#7A1D2E] text-white border border-[#9E2A3E]/60'
+                              : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'
+                          }`}
+                        >
+                          {ml}ml
+                        </button>
+                      ))}
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Otro"
+                        value={[200,375,500,700,750,1000,1750].includes(parseInt(addBottleMl)) ? '' : addBottleMl}
+                        onChange={(e) => setAddBottleMl(e.target.value)}
+                        className="w-20 h-8 bg-[#0a0f0e] border border-[#223530] rounded-lg px-2 text-xs text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] placeholder:text-[#4a6560]"
+                      />
+                    </div>
+                  </div>
+
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <label className="block text-[10px] text-[#7d9990] mb-1 uppercase tracking-wider">Stock inicial</label>

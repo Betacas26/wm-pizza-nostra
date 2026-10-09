@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, Download, AlertTriangle, TrendingUp } from 'lucide-react';
 
-type ReportTab = 'general' | 'capitanes' | 'turnos' | 'productos' | 'sanciones' | 'checklist' | 'horarios' | 'rubricas' | 'barra';
+type ReportTab = 'general' | 'capitanes' | 'turnos' | 'productos' | 'sanciones' | 'checklist' | 'horarios' | 'rubricas' | 'propinas' | 'barra';
 
 interface RawSale {
   sale_date: string;
@@ -76,6 +76,12 @@ interface StaffSanctionSummary {
   sanciones: number;
   balance: number;
   count: number;
+}
+
+interface CaptainShiftRow {
+  shift_date: string;
+  shift: string;
+  captain_id: string;
 }
 
 interface EvalRow {
@@ -216,6 +222,11 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   const [sanctionNames, setSanctionNames] = useState<Map<string, string>>(new Map());
   const [sanctionLoading, setSanctionLoading] = useState(false);
 
+  // Propinas state
+  const [captainShifts, setCaptainShifts] = useState<CaptainShiftRow[]>([]);
+  const [captainNames, setCaptainNames] = useState<Map<string, string>>(new Map());
+  const [propinasLoading, setPropinasLoading] = useState(false);
+
   // Rúbricas state
   const [evals, setEvals] = useState<EvalRow[]>([]);
   const [evalScores, setEvalScores] = useState<EvalScoreRow[]>([]);
@@ -314,6 +325,36 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         }
       } catch { /* silent */ }
       setSanctionLoading(false);
+    },
+    [supabase],
+  );
+
+  const loadPropinas = useCallback(
+    async (from: string, to: string) => {
+      setPropinasLoading(true);
+      try {
+        const [{ data: shiftsData }, { data: profilesData }] = await Promise.all([
+          supabase
+            .from('captain_shifts')
+            .select('shift_date, shift, captain_id')
+            .gte('shift_date', from)
+            .lte('shift_date', to),
+          supabase
+            .from('profiles')
+            .select('id, name')
+            .eq('active', true),
+        ]);
+        setCaptainShifts((shiftsData ?? []) as CaptainShiftRow[]);
+        setCaptainNames(
+          new Map(
+            (profilesData ?? []).map((p: { id: string; name: string | null }) => [
+              p.id,
+              p.name ?? '(sin nombre)',
+            ]),
+          ),
+        );
+      } catch { /* silent */ }
+      setPropinasLoading(false);
     },
     [supabase],
   );
@@ -424,6 +465,9 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
   useEffect(() => {
     if (tab === 'sanciones') loadSanciones(dateFrom, dateTo);
   }, [tab, dateFrom, dateTo, loadSanciones]);
+  useEffect(() => {
+    if (tab === 'propinas') loadPropinas(dateFrom, dateTo);
+  }, [tab, dateFrom, dateTo, loadPropinas]);
   useEffect(() => {
     if (tab === 'rubricas') loadRubricas(dateFrom, dateTo);
   }, [tab, dateFrom, dateTo, loadRubricas]);
@@ -567,6 +611,81 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     sanciones: r2(staffSanctionSummaries.reduce((a, s) => a + s.sanciones, 0)),
     balance: r2(staffSanctionSummaries.reduce((a, s) => a + s.balance, 0)),
   }), [staffSanctionSummaries]);
+
+  // ── Derived: propinas por capitán ───────────────────────────────────────────
+  const propinasData = useMemo(() => {
+    // Build map (date|shift) → captain_id
+    const captainMap = new Map<string, string>();
+    for (const cs of captainShifts) {
+      captainMap.set(`${cs.shift_date}|${cs.shift}`, cs.captain_id);
+    }
+
+    // Per-captain totals from rawSales
+    const captainTotals = new Map<string, { captain_id: string; name: string; tip: number; shifts: number; sales: number }>();
+    // Per-day rows
+    const dayMap = new Map<string, { date: string; mat: { captain: string; tip: number } | null; vesp: { captain: string; tip: number } | null }>();
+
+    for (const sale of rawSales) {
+      const tip = Number(sale.captain_tip) || 0;
+      const captainId = captainMap.get(`${sale.sale_date}|${sale.shift}`);
+
+      if (captainId) {
+        const ex = captainTotals.get(captainId);
+        if (ex) { ex.tip = r2(ex.tip + tip); ex.sales++; }
+        else captainTotals.set(captainId, { captain_id: captainId, name: captainNames.get(captainId) ?? '—', tip, shifts: 0, sales: 1 });
+      }
+    }
+
+    // Count distinct (date, shift) pairs per captain
+    for (const cs of captainShifts) {
+      const ex = captainTotals.get(cs.captain_id);
+      if (ex) ex.shifts++;
+      else captainTotals.set(cs.captain_id, { captain_id: cs.captain_id, name: captainNames.get(cs.captain_id) ?? '—', tip: 0, shifts: 1, sales: 0 });
+    }
+
+    // Day rows: sum tip per (date, shift) and assign captain name
+    const daySales = new Map<string, { tip: number; count: number }>();
+    for (const sale of rawSales) {
+      const key = `${sale.sale_date}|${sale.shift}`;
+      const ex = daySales.get(key);
+      if (ex) { ex.tip = r2(ex.tip + (Number(sale.captain_tip) || 0)); ex.count++; }
+      else daySales.set(key, { tip: Number(sale.captain_tip) || 0, count: 1 });
+    }
+
+    const allDates = [...new Set([
+      ...rawSales.map((s) => s.sale_date),
+      ...captainShifts.map((cs) => cs.shift_date),
+    ])].sort();
+
+    for (const date of allDates) {
+      const matKey = `${date}|Matutino`;
+      const vespKey = `${date}|Vespertino`;
+      const matCaptainId = captainMap.get(matKey);
+      const vespCaptainId = captainMap.get(vespKey);
+      const matSales = daySales.get(matKey);
+      const vespSales = daySales.get(vespKey);
+
+      if (matCaptainId || matSales || vespCaptainId || vespSales) {
+        dayMap.set(date, {
+          date,
+          mat: (matCaptainId || matSales) ? {
+            captain: matCaptainId ? (captainNames.get(matCaptainId) ?? '—').split(' ')[0] : '(sin asignar)',
+            tip: matSales?.tip ?? 0,
+          } : null,
+          vesp: (vespCaptainId || vespSales) ? {
+            captain: vespCaptainId ? (captainNames.get(vespCaptainId) ?? '—').split(' ')[0] : '(sin asignar)',
+            tip: vespSales?.tip ?? 0,
+          } : null,
+        });
+      }
+    }
+
+    const ranking = [...captainTotals.values()].sort((a, b) => b.tip - a.tip);
+    const days = [...dayMap.values()];
+    const totalTip = r2(ranking.reduce((s, c) => s + c.tip, 0));
+
+    return { ranking, days, totalTip };
+  }, [captainShifts, captainNames, rawSales]);
 
   // ── Derived: rúbricas ───────────────────────────────────────────────────────
   const evalStaffSummaries = useMemo(() => {
@@ -758,6 +877,15 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         ],
         `sanciones_${range}.csv`,
       );
+    } else if (tab === 'propinas') {
+      exportCSV(
+        [
+          ['Capitán', 'Turnos asignados', 'Cierres', 'Propina total'],
+          ...propinasData.ranking.map((c) => [c.name, String(c.shifts), String(c.sales), fmtMXN(c.tip)]),
+          ['TOTAL', '', '', fmtMXN(propinasData.totalTip)],
+        ],
+        `propinas_capitanes_${range}.csv`,
+      );
     } else if (tab === 'rubricas') {
       exportCSV(
         [
@@ -811,6 +939,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
     { key: 'checklist',  label: 'Checklist' },
     { key: 'horarios',   label: 'Horarios' },
     { key: 'rubricas',   label: 'Rúbricas' },
+    { key: 'propinas',   label: 'Propinas' },
     { key: 'barra',      label: 'Barra' },
   ];
 
@@ -1718,6 +1847,97 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                           </div>
                         );
                       })}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ══ PROPINAS ═════════════════════════════════════════════════════ */}
+            {tab === 'propinas' && (
+              <div className="space-y-3">
+                {propinasLoading || loading ? (
+                  <div className="text-center py-16 text-[#7d9990] text-sm">Cargando...</div>
+                ) : propinasData.ranking.length === 0 ? (
+                  <div className="text-center py-12 text-[#7d9990] text-sm">Sin propinas registradas en este periodo.</div>
+                ) : (
+                  <>
+                    {/* Summary */}
+                    <div className="bg-sky-950/30 border border-sky-800/50 rounded-2xl p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <TrendingUp size={16} strokeWidth={1.5} className="text-sky-400 shrink-0" />
+                        <p className="text-xs font-bold text-sky-400 uppercase tracking-wider">Propina Capitán (0.8%)</p>
+                      </div>
+                      <p className="text-3xl font-mono font-extrabold tracking-tight text-sky-400">
+                        {fmtMXN(propinasData.totalTip)}
+                      </p>
+                      <p className="text-xs text-[#7d9990] mt-1">
+                        {propinasData.days.length} días · {grandTotals.count} cierres · {propinasData.ranking.length} capitán{propinasData.ranking.length !== 1 ? 'es' : ''}
+                      </p>
+                    </div>
+
+                    {/* Captain ranking */}
+                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                      Ranking por capitán
+                    </p>
+                    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] divide-y divide-[#223530] overflow-hidden">
+                      {propinasData.ranking.map((c, idx) => (
+                        <div key={c.captain_id} className="flex items-center gap-3 px-4 py-3">
+                          <div className={`w-7 h-7 rounded-full flex items-center justify-center font-extrabold text-xs shrink-0 ${
+                            idx === 0 ? 'bg-sky-700 text-white' :
+                            idx === 1 ? 'bg-sky-900/60 border border-sky-700/50 text-sky-300' :
+                            'bg-[#1c2b27] border border-[#223530] text-[#7d9990]'
+                          }`}>{idx + 1}</div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-[#e6edea] truncate">{c.name}</p>
+                            <p className="text-[10px] text-[#7d9990]">
+                              {c.shifts} turno{c.shifts !== 1 ? 's' : ''} · {c.sales} cierre{c.sales !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <p className="font-mono font-bold text-sky-400 shrink-0">{fmtMXN(c.tip)}</p>
+                        </div>
+                      ))}
+                      {/* Footer */}
+                      <div className="flex items-center gap-3 px-4 py-2.5 bg-[#1c2b27] border-t border-sky-800/30">
+                        <p className="flex-1 text-xs font-bold text-[#7d9990] uppercase">Total</p>
+                        <p className="font-mono font-bold text-sky-400">{fmtMXN(propinasData.totalTip)}</p>
+                      </div>
+                    </div>
+
+                    {/* Per-day table */}
+                    <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider px-1">
+                      Por día
+                    </p>
+                    <div className="bg-[#151D1A] rounded-2xl border border-[#223530] overflow-hidden">
+                      <div className="grid grid-cols-3 px-4 py-2 border-b border-[#223530] bg-[#0a0f0e]">
+                        <span className="text-[10px] font-bold text-[#7d9990] uppercase">Fecha</span>
+                        <span className="text-[10px] font-bold text-[#E8899A] uppercase text-center">Matutino</span>
+                        <span className="text-[10px] font-bold text-sky-400 uppercase text-center">Vespertino</span>
+                      </div>
+                      {propinasData.days.map((d, i) => (
+                        <div
+                          key={d.date}
+                          className={`grid grid-cols-3 px-4 py-2.5 items-center ${i < propinasData.days.length - 1 ? 'border-b border-[#223530]' : ''}`}
+                        >
+                          <span className="text-xs font-mono text-[#e6edea]">{d.date.slice(5)}</span>
+                          <div className="text-center">
+                            {d.mat ? (
+                              <div>
+                                <p className="text-[10px] font-semibold text-[#e6edea]">{d.mat.captain}</p>
+                                <p className="text-[10px] font-mono text-sky-400">{fmtMXN(d.mat.tip)}</p>
+                              </div>
+                            ) : <span className="text-[#4a6560] text-xs">—</span>}
+                          </div>
+                          <div className="text-center">
+                            {d.vesp ? (
+                              <div>
+                                <p className="text-[10px] font-semibold text-[#e6edea]">{d.vesp.captain}</p>
+                                <p className="text-[10px] font-mono text-sky-400">{fmtMXN(d.vesp.tip)}</p>
+                              </div>
+                            ) : <span className="text-[#4a6560] text-xs">—</span>}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </>
                 )}

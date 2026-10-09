@@ -3,7 +3,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import MesasClient from './MesasClient';
-import type { MeseroData } from './MesasClient';
+import type { MeseroData, AyudanteData } from './MesasClient';
 
 export default async function MesasPage() {
   const supabase = await createClient();
@@ -24,14 +24,30 @@ export default async function MesasPage() {
 
   const today = new Date().toISOString().split('T')[0];
 
-  const { data: profiles } = await supabase
-    .from('profiles')
-    .select('id, name, home_area')
-    .eq('role', 'mesero')
-    .eq('active', true)
-    .order('name', { ascending: true });
+  const [{ data: mData }, { data: aData }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('id, name, home_area')
+      .eq('role', 'mesero')
+      .eq('active', true)
+      .order('name'),
+    supabase
+      .from('profiles')
+      .select('id, name, home_area')
+      .eq('role', 'ayudante')
+      .eq('active', true)
+      .order('name'),
+  ]);
 
-  const meseros: MeseroData[] = (profiles ?? []).map(
+  const meseros: MeseroData[] = (mData ?? []).map(
+    (p: { id: string; name: string | null; home_area: string | null }) => ({
+      id: p.id,
+      name: p.name ?? '(sin nombre)',
+      home_area: p.home_area,
+    }),
+  );
+
+  const ayudantes: AyudanteData[] = (aData ?? []).map(
     (p: { id: string; name: string | null; home_area: string | null }) => ({
       id: p.id,
       name: p.name ?? '(sin nombre)',
@@ -55,12 +71,18 @@ export default async function MesasPage() {
           </h1>
           <p className="text-xs text-[#7d9990]">
             {meseros.length} mesero{meseros.length !== 1 ? 's' : ''} activos
+            {ayudantes.length > 0 && ` · ${ayudantes.length} ayudante${ayudantes.length !== 1 ? 's' : ''}`}
           </p>
         </div>
       </header>
 
       <main className="p-4 max-w-xl mx-auto">
-        <MesasClient meseros={meseros} today={today} isManager={isManager} />
+        <MesasClient
+          meseros={meseros}
+          ayudantes={ayudantes}
+          today={today}
+          isManager={isManager}
+        />
       </main>
     </div>
   );

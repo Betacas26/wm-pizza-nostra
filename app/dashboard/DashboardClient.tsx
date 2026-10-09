@@ -14,14 +14,26 @@ import {
   LogOut,
   Package,
   ChevronDown,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { signOutAction } from './actions';
+
+export interface LiveStats {
+  activeMeals: number;
+  overdueMeals: number;
+  salesCount: number;
+  salesTotal: number;
+  checklistCount: number;
+  tablesAssigned: number;
+}
 
 interface Props {
   userName: string;
   userRole: string;
   isManager: boolean;
   isBarraManager: boolean;
+  liveStats: LiveStats;
 }
 
 const CARD =
@@ -32,23 +44,21 @@ interface Module {
   Icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }>;
   title: string;
   sub: string;
+  badge?: React.ReactNode;
 }
 
-const TURNO: Module[] = [
-  { href: '/dashboard/mesas',     Icon: UtensilsCrossed, title: 'Mesas',     sub: 'Pick & Tap' },
-  { href: '/dashboard/ventas',    Icon: Banknote,        title: 'Ventas',    sub: 'Cierre y propinas' },
-  { href: '/dashboard/comidas',   Icon: Pizza,           title: 'Comidas',   sub: 'Control 30 min' },
-  { href: '/dashboard/checklist', Icon: ClipboardList,   title: 'Checklist', sub: 'Apertura y cierre' },
-];
+function fmtMXN(n: number): string {
+  if (n >= 1000) return `$${(n / 1000).toFixed(1)}k`;
+  return `$${n.toFixed(0)}`;
+}
 
-const GESTION: Module[] = [
-  { href: '/dashboard/horarios',  Icon: Clock,   title: 'Horarios',  sub: 'Turnos semanales' },
-  { href: '/dashboard/personal',  Icon: Users,   title: 'Personal',  sub: 'Colaboradores' },
-  { href: '/dashboard/rubricas',  Icon: Star,    title: 'Rubricas',  sub: 'Evaluacion' },
-  { href: '/dashboard/productos', Icon: Package, title: 'Productos', sub: 'Catalogo de ventas' },
-];
-
-export default function DashboardClient({ userName, userRole, isManager, isBarraManager }: Props) {
+export default function DashboardClient({
+  userName,
+  userRole,
+  isManager,
+  isBarraManager,
+  liveStats,
+}: Props) {
   const [tab, setTab] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -85,6 +95,66 @@ export default function DashboardClient({ userName, userRole, isManager, isBarra
     month: 'long',
   });
 
+  // Live badges
+  const mesasBadge =
+    liveStats.tablesAssigned > 0 ? (
+      <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 mt-1">
+        <CheckCircle2 size={10} strokeWidth={2.5} />
+        {liveStats.tablesAssigned} asignadas
+      </span>
+    ) : (
+      <span className="text-[10px] text-[#7d9990] mt-1 block">Sin asignar</span>
+    );
+
+  const comidasBadge =
+    liveStats.activeMeals > 0 ? (
+      <span
+        className={`flex items-center gap-1 text-[10px] font-semibold mt-1 ${
+          liveStats.overdueMeals > 0 ? 'text-red-400' : 'text-amber-400'
+        }`}
+      >
+        {liveStats.overdueMeals > 0 && <AlertTriangle size={10} strokeWidth={2.5} />}
+        {liveStats.activeMeals} en comida
+        {liveStats.overdueMeals > 0 && ` · ${liveStats.overdueMeals} excedido${liveStats.overdueMeals !== 1 ? 's' : ''}`}
+      </span>
+    ) : (
+      <span className="text-[10px] text-[#7d9990] mt-1 block">Todos en piso</span>
+    );
+
+  const ventasBadge =
+    liveStats.salesCount > 0 ? (
+      <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 mt-1">
+        <CheckCircle2 size={10} strokeWidth={2.5} />
+        {fmtMXN(liveStats.salesTotal)} · {liveStats.salesCount} cierre{liveStats.salesCount !== 1 ? 's' : ''}
+      </span>
+    ) : (
+      <span className="text-[10px] text-[#7d9990] mt-1 block">Sin cierres hoy</span>
+    );
+
+  const checklistBadge =
+    liveStats.checklistCount > 0 ? (
+      <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-400 mt-1">
+        <CheckCircle2 size={10} strokeWidth={2.5} />
+        {liveStats.checklistCount} revision{liveStats.checklistCount !== 1 ? 'es' : ''} hoy
+      </span>
+    ) : (
+      <span className="text-[10px] text-[#7d9990] mt-1 block">Pendiente</span>
+    );
+
+  const TURNO: Module[] = [
+    { href: '/dashboard/mesas',     Icon: UtensilsCrossed, title: 'Mesas',     sub: 'Pick & Tap',         badge: mesasBadge },
+    { href: '/dashboard/ventas',    Icon: Banknote,        title: 'Ventas',    sub: 'Cierre y propinas',  badge: ventasBadge },
+    { href: '/dashboard/comidas',   Icon: Pizza,           title: 'Comidas',   sub: 'Control 30 min',     badge: comidasBadge },
+    { href: '/dashboard/checklist', Icon: ClipboardList,   title: 'Checklist', sub: 'Apertura y cierre',  badge: checklistBadge },
+  ];
+
+  const GESTION: Module[] = [
+    { href: '/dashboard/horarios',  Icon: Clock,   title: 'Horarios',  sub: 'Turnos semanales' },
+    { href: '/dashboard/personal',  Icon: Users,   title: 'Personal',  sub: 'Colaboradores' },
+    { href: '/dashboard/rubricas',  Icon: Star,    title: 'Rubricas',  sub: 'Evaluacion' },
+    { href: '/dashboard/productos', Icon: Package, title: 'Productos', sub: 'Catalogo de ventas' },
+  ];
+
   return (
     <div className="h-screen bg-[#0D1211] text-[#e6edea] flex flex-col overflow-hidden">
       {/* Header */}
@@ -106,6 +176,9 @@ export default function DashboardClient({ userName, userRole, isManager, isBarra
             <span className="w-6 h-6 rounded-full flex items-center justify-center font-extrabold text-sm shrink-0">
               {userName.charAt(0).toUpperCase()}
             </span>
+            <span className="text-[10px] font-semibold capitalize hidden xs:block">
+              {userRole.replace('_', ' ')}
+            </span>
             <ChevronDown
               size={13}
               strokeWidth={2.5}
@@ -119,7 +192,7 @@ export default function DashboardClient({ userName, userRole, isManager, isBarra
               {/* User info */}
               <div className="px-4 py-3 border-b border-[#223530]">
                 <p className="font-bold text-[#e6edea] text-sm leading-tight">{userName}</p>
-                <p className="text-xs text-[#7d9990] capitalize mt-0.5">{userRole}</p>
+                <p className="text-xs text-[#7d9990] capitalize mt-0.5">{userRole.replace('_', ' ')}</p>
               </div>
 
               {/* Links */}
@@ -184,6 +257,7 @@ export default function DashboardClient({ userName, userRole, isManager, isBarra
                   <m.Icon size={22} strokeWidth={1.5} className="text-[#E8899A] mb-2" />
                   <span className="font-bold text-sm block text-[#e6edea]">{m.title}</span>
                   <span className="text-xs text-[#7d9990]">{m.sub}</span>
+                  {m.badge}
                 </Link>
               ))}
               {isBarraManager && (

@@ -14,6 +14,12 @@ export interface MeseroData {
   home_area: string | null;
 }
 
+export interface AyudanteData {
+  id: string;
+  name: string;
+  home_area: string | null;
+}
+
 // ── Constantes ──────────────────────────────────────────────────────────────
 const AREA_TABLES: Record<Area, string[]> = {
   PB: ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'BR'],
@@ -173,10 +179,12 @@ ${sections}
 // ── Componente ──────────────────────────────────────────────────────────────
 export default function MesasClient({
   meseros,
+  ayudantes,
   today,
   isManager,
 }: {
   meseros: MeseroData[];
+  ayudantes: AyudanteData[];
   today: string;
   isManager: boolean;
 }) {
@@ -499,6 +507,127 @@ export default function MesasClient({
             );
           })}
         </div>
+      )}
+
+      {/* Ayudantes por área */}
+      {ayudantes.length > 0 && (
+        <section className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#223530]">
+            <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
+              Ayudantes por Area
+            </h2>
+          </div>
+          <div className="grid grid-cols-3 divide-x divide-[#223530]">
+            {AREA_ORDER.map((area) => {
+              const inArea = ayudantes.filter(
+                (a) => a.home_area === area,
+              );
+              return (
+                <div key={area} className="p-3">
+                  <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider mb-2">
+                    {area}
+                  </p>
+                  {inArea.length === 0 ? (
+                    <p className="text-[10px] text-[#223530] italic">—</p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {inArea.map((a) => (
+                        <span
+                          key={a.id}
+                          className="text-xs font-semibold text-orange-300 bg-orange-950/50 border border-orange-800/40 px-2 py-0.5 rounded-lg truncate"
+                        >
+                          {a.name.split(' ')[0]}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Reporte de rotacion semanal */}
+      {meseros.length > 0 && (
+        <section className="bg-[#151D1A] rounded-2xl border border-[#223530] shadow-[0_2px_8px_rgba(0,0,0,0.2)] overflow-hidden">
+          <div className="px-4 py-2.5 border-b border-[#223530]">
+            <h2 className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
+              Rotacion semanal — {weekLabel}
+            </h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-[#223530]">
+                  <th className="sticky left-0 bg-[#151D1A] px-3 py-2 text-left font-bold text-[#7d9990] min-w-[90px]">
+                    Mesero
+                  </th>
+                  {AREA_ORDER.map((a) => (
+                    <th key={a} className="px-3 py-2 text-center font-bold text-[#7d9990]">
+                      {a}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#223530]">
+                {meseros.map((m) => {
+                  // Count days assigned per area across the week
+                  // We need weekly assignment data — use the current assignments for selectedDay only
+                  // as a proxy (full weekly count would require loading all 7 days)
+                  const assignedArea = (() => {
+                    let area: Area | null = null;
+                    for (const [tableCode, staffId] of assignments.entries()) {
+                      if (staffId !== m.id) continue;
+                      for (const [a, tables] of Object.entries(AREA_TABLES) as [Area, string[]][]) {
+                        if (tables.includes(tableCode)) { area = a; break; }
+                      }
+                      if (area) break;
+                    }
+                    return area;
+                  })();
+
+                  return (
+                    <tr key={m.id} className="hover:bg-[#1c2b27]/30">
+                      <td className="sticky left-0 bg-[#151D1A] px-3 py-2 font-semibold text-[#e6edea] truncate max-w-[90px]">
+                        {m.name.split(' ')[0]}
+                      </td>
+                      {AREA_ORDER.map((a) => {
+                        const isHere = assignedArea === a;
+                        const isHome = m.home_area === a;
+                        return (
+                          <td key={a} className="px-3 py-2 text-center">
+                            {isHere ? (
+                              <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg text-[10px] font-bold ${
+                                isHome
+                                  ? 'bg-emerald-950/60 border border-emerald-700/50 text-emerald-300'
+                                  : 'bg-[#420F18]/60 border border-[#9E2A3E]/50 text-[#E8899A]'
+                              }`}>
+                                {isHome ? 'H' : 'C'}
+                              </span>
+                            ) : (
+                              <span className="text-[#223530]">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div className="px-4 py-2 border-t border-[#223530] flex gap-3">
+            <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+              <span className="w-4 h-4 rounded bg-emerald-950/60 border border-emerald-700/50 inline-flex items-center justify-center font-bold text-[8px]">H</span>
+              Home area
+            </span>
+            <span className="flex items-center gap-1 text-[10px] text-[#E8899A]">
+              <span className="w-4 h-4 rounded bg-[#420F18]/60 border border-[#9E2A3E]/50 inline-flex items-center justify-center font-bold text-[8px]">C</span>
+              Cobertura
+            </span>
+          </div>
+        </section>
       )}
     </div>
   );

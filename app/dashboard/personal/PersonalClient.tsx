@@ -14,10 +14,10 @@ import {
 const AREAS = ['PB', 'PA', 'TE'] as const;
 type Area = (typeof AREAS)[number];
 
-const ROLES = ['mesero', 'ayudante', 'hostess', 'barrero', 'supervisor', 'admin'] as const;
+const ROLES = ['mesero', 'ayudante', 'hostess', 'barrero', 'encargado_barra', 'supervisor', 'admin'] as const;
 type Role = (typeof ROLES)[number];
 
-const ROLE_ORDER: Role[] = ['admin', 'supervisor', 'hostess', 'mesero', 'barrero', 'ayudante'];
+const ROLE_ORDER: Role[] = ['admin', 'supervisor', 'encargado_barra', 'hostess', 'mesero', 'barrero', 'ayudante'];
 
 const AREA_LABELS: Record<Area, string> = {
   PB: 'Planta Baja',
@@ -26,21 +26,23 @@ const AREA_LABELS: Record<Area, string> = {
 };
 
 const ROLE_LABELS: Record<Role, string> = {
-  mesero: 'Mesero',
-  ayudante: 'Ayudante',
-  hostess: 'Hostess',
-  barrero: 'Barrero',
-  supervisor: 'Supervisor',
-  admin: 'Admin',
+  mesero:          'Mesero',
+  ayudante:        'Ayudante',
+  hostess:         'Hostess',
+  barrero:         'Barrero',
+  encargado_barra: 'Enc. Barra',
+  supervisor:      'Supervisor',
+  admin:           'Admin',
 };
 
 const ROLE_BADGE: Record<Role, string> = {
-  mesero:     'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]',
-  ayudante:   'bg-orange-950/60 border border-orange-800/50 text-orange-300',
-  hostess:    'bg-pink-950/60 border border-pink-800/50 text-pink-300',
-  barrero:    'bg-teal-950/60 border border-teal-700/50 text-teal-300',
-  supervisor: 'bg-sky-950/60 border border-sky-700/50 text-sky-300',
-  admin:      'bg-purple-950/60 border border-purple-700/50 text-purple-300',
+  mesero:          'bg-[#420F18]/80 border border-[#9E2A3E]/60 text-[#E8899A]',
+  ayudante:        'bg-orange-950/60 border border-orange-800/50 text-orange-300',
+  hostess:         'bg-pink-950/60 border border-pink-800/50 text-pink-300',
+  barrero:         'bg-teal-950/60 border border-teal-700/50 text-teal-300',
+  encargado_barra: 'bg-amber-950/60 border border-amber-700/50 text-amber-300',
+  supervisor:      'bg-sky-950/60 border border-sky-700/50 text-sky-300',
+  admin:           'bg-purple-950/60 border border-purple-700/50 text-purple-300',
 };
 
 // ── Toggle switch ────────────────────────────────────────────────────────────

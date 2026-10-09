@@ -21,7 +21,7 @@ export default async function DiarioPage() {
     .single();
 
   const role = (profile as { role: string | null } | null)?.role ?? '';
-  if (role !== 'admin' && role !== 'encargado_barra') redirect('/dashboard');
+  if (role !== 'admin' && role !== 'encargado_barra' && role !== 'supervisor') redirect('/dashboard');
 
   const today = new Date().toISOString().split('T')[0];
 

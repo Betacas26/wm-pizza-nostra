@@ -11,7 +11,7 @@ import {
   X,
   Trash2,
 } from 'lucide-react';
-import { updateInventoryStockAction, updateInventoryMinStockAction, updateInventoryProductNameAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
+import { updateInventoryStockAction, updateInventoryMinStockAction, updateInventoryProductNameAction, updateInventoryCategoryUnitAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
 
 export interface InventoryItem {
   id: string;
@@ -79,6 +79,11 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
   // Edit product name state
   const [editingNameId, setEditingNameId] = useState<string | null>(null);
   const [editingNameValue, setEditingNameValue] = useState('');
+
+  // Edit category/unit state
+  const [editingMetaId, setEditingMetaId] = useState<string | null>(null);
+  const [editingCategory, setEditingCategory] = useState('');
+  const [editingUnit, setEditingUnit] = useState('');
 
   const lowStock = inventory.filter((i) => i.stock < i.min_stock);
 
@@ -166,6 +171,18 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
       setAddError(err instanceof Error ? err.message : 'Error al agregar producto.');
     } finally {
       setAddSubmitting(false);
+    }
+  }
+
+  async function handleSaveMeta(item: InventoryItem) {
+    const prevCat = item.category;
+    const prevUnit = item.unit;
+    setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, category: editingCategory, unit: editingUnit } : i));
+    setEditingMetaId(null);
+    try {
+      await updateInventoryCategoryUnitAction(item.id, editingCategory, editingUnit);
+    } catch {
+      setInventory((inv) => inv.map((i) => i.id === item.id ? { ...i, category: prevCat, unit: prevUnit } : i));
     }
   }
 
@@ -412,6 +429,46 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
                                     </button>
                                   )}
                                 </div>
+                                {/* Category / Unit inline edit */}
+                                <div className="mt-0.5">
+                                  {editingMetaId === item.id ? (
+                                    <form
+                                      onSubmit={(e) => { e.preventDefault(); handleSaveMeta(item); }}
+                                      className="flex items-center gap-1 flex-wrap"
+                                    >
+                                      <select
+                                        value={editingCategory}
+                                        onChange={(e) => setEditingCategory(e.target.value)}
+                                        autoFocus
+                                        className="bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-[10px] text-[#e6edea] focus:outline-none"
+                                      >
+                                        {['licores','cervezas','vinos','refrescos','mixers','otros'].map((c) => (
+                                          <option key={c} value={c}>{c}</option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        value={editingUnit}
+                                        onChange={(e) => setEditingUnit(e.target.value)}
+                                        className="bg-[#0a0f0e] border border-[#7A1D2E] rounded-lg px-2 py-0.5 text-[10px] text-[#e6edea] focus:outline-none"
+                                      >
+                                        {['botellas','cajas','piezas','litros','kg','latas'].map((u) => (
+                                          <option key={u} value={u}>{u}</option>
+                                        ))}
+                                      </select>
+                                      <button type="submit" className="text-[10px] font-bold text-emerald-400 px-1">✓</button>
+                                      <button type="button" onClick={() => setEditingMetaId(null)} className="text-[10px] text-[#7d9990] px-1">✕</button>
+                                    </form>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => { setEditingMetaId(item.id); setEditingCategory(item.category); setEditingUnit(item.unit); }}
+                                      className="text-[10px] text-[#7d9990] hover:text-[#e6edea] transition underline decoration-dashed underline-offset-2"
+                                    >
+                                      {item.category} · {item.unit}
+                                    </button>
+                                  )}
+                                </div>
+
                                 <div className="mt-0.5 flex items-center gap-1">
                                   {isLow && (
                                     <span className="text-amber-400 font-semibold flex items-center gap-0.5 text-[10px]">

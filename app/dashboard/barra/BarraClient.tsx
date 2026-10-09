@@ -7,8 +7,11 @@ import {
   AlertTriangle,
   Package,
   ClipboardList,
+  Plus,
+  X,
+  Trash2,
 } from 'lucide-react';
-import { updateInventoryStockAction, recordMermaAction } from './actions';
+import { updateInventoryStockAction, recordMermaAction, addInventoryProductAction, deleteInventoryProductAction } from './actions';
 
 export interface InventoryItem {
   id: string;
@@ -57,6 +60,17 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
   const [mermaReason, setMermaReason] = useState(REASONS[0]);
   const [mermaSubmitting, setMermaSubmitting] = useState(false);
   const [mermaError, setMermaError] = useState('');
+
+  // Add product form state
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addCategory, setAddCategory] = useState('licores');
+  const [addUnit, setAddUnit] = useState('botellas');
+  const [addStock, setAddStock] = useState('0');
+  const [addMinStock, setAddMinStock] = useState('1');
+  const [addSubmitting, setAddSubmitting] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const lowStock = inventory.filter((i) => i.stock < i.min_stock);
 
@@ -114,6 +128,49 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
       setMermaError(err instanceof Error ? err.message : 'Error al registrar merma.');
     } finally {
       setMermaSubmitting(false);
+    }
+  }
+
+  async function handleAddProduct(e: React.FormEvent) {
+    e.preventDefault();
+    setAddError('');
+    if (!addName.trim()) { setAddError('El nombre es obligatorio.'); return; }
+    const stock = parseFloat(addStock);
+    const minStock = parseFloat(addMinStock);
+    if (isNaN(stock) || stock < 0) { setAddError('Stock inicial inválido.'); return; }
+    if (isNaN(minStock) || minStock < 0) { setAddError('Stock mínimo inválido.'); return; }
+
+    setAddSubmitting(true);
+    try {
+      const newItem = await addInventoryProductAction({
+        product_name: addName,
+        category: addCategory,
+        unit: addUnit,
+        stock,
+        min_stock: minStock,
+      });
+      setInventory((prev) => [...prev, newItem]);
+      setAddName('');
+      setAddStock('0');
+      setAddMinStock('1');
+      setShowAddForm(false);
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Error al agregar producto.');
+    } finally {
+      setAddSubmitting(false);
+    }
+  }
+
+  async function handleDeleteProduct(id: string, name: string) {
+    if (!window.confirm(`¿Eliminar "${name}" del inventario?`)) return;
+    setDeletingId(id);
+    try {
+      await deleteInventoryProductAction(id);
+      setInventory((prev) => prev.filter((i) => i.id !== id));
+    } catch {
+      // silent
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -181,11 +238,92 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
         {/* ── Inventario ── */}
         {tab === 0 && (
           <>
+            {/* Agregar producto */}
+            {!showAddForm ? (
+              <button
+                onClick={() => setShowAddForm(true)}
+                className="w-full min-h-[44px] rounded-xl border border-dashed border-[#223530] text-[#7d9990] hover:text-[#e6edea] hover:border-[#7A1D2E] text-sm font-semibold flex items-center justify-center gap-2 transition active:scale-[0.98]"
+              >
+                <Plus size={15} strokeWidth={2.5} />
+                Agregar producto al inventario
+              </button>
+            ) : (
+              <div className={`${CARD} p-4`}>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs font-bold text-[#7d9990] uppercase tracking-wider">
+                    Nuevo producto
+                  </p>
+                  <button onClick={() => { setShowAddForm(false); setAddError(''); }} className="text-[#7d9990] hover:text-[#e6edea] transition">
+                    <X size={16} strokeWidth={2} />
+                  </button>
+                </div>
+                <form onSubmit={handleAddProduct} className="space-y-2.5">
+                  <input
+                    type="text"
+                    placeholder="Nombre del producto *"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    className="w-full bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] placeholder:text-[#4a6560]"
+                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={addCategory}
+                      onChange={(e) => setAddCategory(e.target.value)}
+                      className="flex-1 bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] appearance-none"
+                    >
+                      {['licores','cervezas','vinos','refrescos','mixers','otros'].map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={addUnit}
+                      onChange={(e) => setAddUnit(e.target.value)}
+                      className="flex-1 bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B] appearance-none"
+                    >
+                      {['botellas','cajas','piezas','litros','kg','latas'].map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="block text-[10px] text-[#7d9990] mb-1 uppercase tracking-wider">Stock inicial</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.25"
+                        value={addStock}
+                        onChange={(e) => setAddStock(e.target.value)}
+                        className="w-full bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B]"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[10px] text-[#7d9990] mb-1 uppercase tracking-wider">Stock mínimo</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.25"
+                        value={addMinStock}
+                        onChange={(e) => setAddMinStock(e.target.value)}
+                        className="w-full bg-[#0a0f0e] border border-[#223530] rounded-xl px-3 py-2.5 text-sm text-[#e6edea] focus:outline-none focus:ring-2 focus:ring-[#B8324B]"
+                      />
+                    </div>
+                  </div>
+                  {addError && <p className="text-xs text-red-400">{addError}</p>}
+                  <button
+                    type="submit"
+                    disabled={addSubmitting}
+                    className="w-full min-h-[44px] rounded-xl bg-[#7A1D2E] hover:bg-[#9E2A3E] active:scale-[0.98] text-white font-bold text-sm transition duration-150 ease-out disabled:opacity-50 select-none"
+                  >
+                    {addSubmitting ? 'Guardando...' : 'Guardar producto'}
+                  </button>
+                </form>
+              </div>
+            )}
+
             {inventory.length === 0 ? (
               <div className="text-center py-12 text-[#7d9990] text-sm">
                 Sin productos en inventario.
-                <br />
-                <span className="text-xs mt-1 block">Agrega productos desde Supabase.</span>
               </div>
             ) : (
               categories.map((cat) => {
@@ -204,9 +342,19 @@ export default function BarraClient({ inventory: initInventory, mermasHoy: initM
                             <div className="flex items-center gap-3">
                               {/* Info */}
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm text-[#e6edea] leading-tight truncate">
-                                  {item.product_name}
-                                </p>
+                                <div className="flex items-center gap-1.5">
+                                  <p className="font-semibold text-sm text-[#e6edea] leading-tight truncate">
+                                    {item.product_name}
+                                  </p>
+                                  <button
+                                    onClick={() => handleDeleteProduct(item.id, item.product_name)}
+                                    disabled={deletingId === item.id}
+                                    className="shrink-0 text-[#7d9990] hover:text-red-400 transition disabled:opacity-30"
+                                    aria-label="Eliminar producto"
+                                  >
+                                    <Trash2 size={12} strokeWidth={2} />
+                                  </button>
+                                </div>
                                 <p className="text-[10px] mt-0.5 flex items-center gap-1">
                                   {isLow ? (
                                     <span className="text-amber-400 font-semibold flex items-center gap-0.5">

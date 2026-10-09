@@ -57,6 +57,50 @@ async function assertBarraRole(): Promise<string> {
   return user.id;
 }
 
+export interface InventoryItem {
+  id: string;
+  product_name: string;
+  category: string;
+  unit: string;
+  stock: number;
+  min_stock: number;
+}
+
+export async function addInventoryProductAction(params: {
+  product_name: string;
+  category: string;
+  unit: string;
+  stock: number;
+  min_stock: number;
+}): Promise<InventoryItem> {
+  await assertBarraRole();
+  const admin = createAdminClient();
+
+  const { data: inserted, error } = await admin
+    .from('bar_inventory')
+    .insert({
+      product_name: params.product_name.trim(),
+      category: params.category.trim(),
+      unit: params.unit.trim(),
+      stock: params.stock,
+      min_stock: params.min_stock,
+    })
+    .select('id, product_name, category, unit, stock, min_stock')
+    .single();
+
+  if (error || !inserted) throw new Error(error?.message ?? 'Error al agregar producto.');
+
+  const row = inserted as InventoryItem;
+  return row;
+}
+
+export async function deleteInventoryProductAction(inventoryId: string): Promise<void> {
+  await assertBarraRole();
+  const admin = createAdminClient();
+  const { error } = await admin.from('bar_inventory').delete().eq('id', inventoryId);
+  if (error) throw new Error(error.message);
+}
+
 export async function updateInventoryStockAction(
   inventoryId: string,
   newStock: number,

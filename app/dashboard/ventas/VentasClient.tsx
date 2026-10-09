@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Share2 } from 'lucide-react';
 import { submitSaleAction, deleteSaleAction, saveProductSalesAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
@@ -170,6 +170,7 @@ export default function VentasClient({
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [dateError, setDateError] = useState('');
+  const [lastSaved, setLastSaved] = useState<SaleRecord | null>(null);
 
   // Compute min date for mesero (3 days back); managers have no limit
   const minSaleDate = useMemo(() => {
@@ -236,6 +237,7 @@ export default function VentasClient({
     }
     setDateError('');
 
+    setLastSaved(null);
     setSaving(true);
     try {
       const inserted = await submitSaleAction({
@@ -265,6 +267,7 @@ export default function VentasClient({
       if (formSaleDate === today) {
         setTodaySales((prev) => [record, ...prev]);
       }
+      setLastSaved(record);
       setFormTotal('');
       setFormSanctionPct('');
       setSavedMsg(true);
@@ -284,6 +287,27 @@ export default function VentasClient({
     } catch {
       // silent
     }
+  }
+
+  function buildWhatsAppMsg(r: SaleRecord): string {
+    const lines = [
+      '*Pizza Nostra — Cierre de Caja*',
+      '─────────────────────',
+      `*Mesero:* ${r.staff_name}`,
+      `*Fecha:* ${r.sale_date}  |  *Turno:* ${r.shift}`,
+      '─────────────────────',
+      `Venta total:       ${fmtMXN(r.total)}`,
+      `Aporte (${APORTE_PCT}%):    ${fmtMXN(r.contribution)}`,
+      `Cristalería:        ${fmtMXN(r.glassware)}`,
+      '─────────────────────',
+      `*Total a entregar: ${fmtMXN(r.to_deliver)}*`,
+      '─────────────────────',
+      `Propina Capitán (info): ${fmtMXN(r.captain_tip)}`,
+    ];
+    if (r.sanction_amount > 0) {
+      lines.push(`Bono sanción (${r.sanction_pct}%): ${fmtMXN(r.sanction_amount)}`);
+    }
+    return lines.join('\n');
   }
 
   const tabs: { key: ActiveTab; label: string }[] = [
@@ -619,6 +643,18 @@ export default function VentasClient({
             >
               {saving ? 'Guardando...' : 'Guardar venta'}
             </button>
+
+            {lastSaved && (
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(buildWhatsAppMsg(lastSaved))}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full min-h-[52px] flex items-center justify-center gap-2 bg-[#1a6b38] hover:bg-[#21874a] active:scale-[0.98] text-white font-bold rounded-xl shadow transition duration-150 ease-out select-none text-sm"
+              >
+                <Share2 size={16} strokeWidth={2.5} />
+                Compartir ticket por WhatsApp
+              </a>
+            )}
           </form>
         )}
 

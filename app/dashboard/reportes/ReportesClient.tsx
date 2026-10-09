@@ -546,6 +546,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
 
   const grandTotals = useMemo(() => ({
     total:          r2(staffSummaries.reduce((a, s) => a + s.total, 0)),
+    contribution:   r2(staffSummaries.reduce((a, s) => a + s.contribution, 0)),
     to_deliver:     r2(staffSummaries.reduce((a, s) => a + s.to_deliver, 0)),
     captain_tip:    r2(staffSummaries.reduce((a, s) => a + s.captain_tip, 0)),
     sanction_amount:r2(staffSummaries.reduce((a, s) => a + s.sanction_amount, 0)),
@@ -839,7 +840,7 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
         [
           ['Mesero', 'Cierres', 'Total Ventas', 'Aporte', 'A Entregar', 'Propina Cap.', 'Sancion'],
           ...staffSummaries.map((s) => [s.name, String(s.count), fmtMXN(s.total), fmtMXN(s.contribution), fmtMXN(s.to_deliver), fmtMXN(s.captain_tip), fmtMXN(s.sanction_amount)]),
-          ['TOTAL', String(grandTotals.count), fmtMXN(grandTotals.total), '', fmtMXN(grandTotals.to_deliver), fmtMXN(grandTotals.captain_tip), fmtMXN(grandTotals.sanction_amount)],
+          ['TOTAL', String(grandTotals.count), fmtMXN(grandTotals.total), fmtMXN(grandTotals.contribution), fmtMXN(grandTotals.to_deliver), fmtMXN(grandTotals.captain_tip), fmtMXN(grandTotals.sanction_amount)],
         ],
         `ventas_${range}.csv`,
       );
@@ -1058,6 +1059,10 @@ export default function ReportesClient({ isAdmin }: { isAdmin: boolean }) {
                     <div>
                       <p className="text-xs text-[#7d9990]">Total ventas</p>
                       <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(grandTotals.total)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-[#7d9990]">Cuota 5%</p>
+                      <p className="font-mono font-bold text-emerald-400">{fmtMXN(grandTotals.contribution)}</p>
                     </div>
                     <div>
                       <p className="text-xs text-[#7d9990]">A entregar</p>

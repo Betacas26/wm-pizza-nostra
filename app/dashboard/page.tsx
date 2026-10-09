@@ -19,12 +19,14 @@ export default async function DashboardPage() {
   const name = (profile as { name: string | null } | null)?.name ?? user.email ?? 'Usuario';
   const role = (profile as { role: string | null } | null)?.role ?? 'personal';
   const isManager = role === 'admin' || role === 'supervisor';
+  const isBarraManager = role === 'admin' || role === 'encargado_barra';
 
   return (
     <DashboardClient
       userName={name}
       userRole={role}
       isManager={isManager}
+      isBarraManager={isBarraManager}
     />
   );
 }

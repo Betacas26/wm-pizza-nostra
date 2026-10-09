@@ -21,6 +21,7 @@ interface Props {
   userName: string;
   userRole: string;
   isManager: boolean;
+  isBarraManager: boolean;
 }
 
 const CARD =
@@ -47,7 +48,7 @@ const GESTION: Module[] = [
   { href: '/dashboard/productos', Icon: Package, title: 'Productos', sub: 'Catalogo de ventas' },
 ];
 
-export default function DashboardClient({ userName, userRole, isManager }: Props) {
+export default function DashboardClient({ userName, userRole, isManager, isBarraManager }: Props) {
   const [tab, setTab] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -185,6 +186,13 @@ export default function DashboardClient({ userName, userRole, isManager }: Props
                   <span className="text-xs text-[#7d9990]">{m.sub}</span>
                 </Link>
               ))}
+              {isBarraManager && (
+                <Link href="/dashboard/barra" className={CARD}>
+                  <Package size={22} strokeWidth={1.5} className="text-[#E8899A] mb-2" />
+                  <span className="font-bold text-sm block text-[#e6edea]">Barra</span>
+                  <span className="text-xs text-[#7d9990]">Inventario y mermas</span>
+                </Link>
+              )}
             </div>
           </section>
 

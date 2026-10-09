@@ -60,7 +60,7 @@ export default async function ComidasPage() {
       started_at: b.started_at,
       duration_minutes: b.duration_minutes,
       ended_at: b.ended_at,
-      status: b.status as 'active' | 'completed' | 'overdue',
+      status: b.status as 'activo' | 'completado' | 'excedido',
     }),
   );
 

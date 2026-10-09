@@ -6,7 +6,7 @@ import { ChevronLeft } from 'lucide-react';
 import { startMealBreakAction, endMealBreakAction } from './actions';
 
 // ── Tipos ──────────────────────────────────────────────────────────────────
-type BreakStatus = 'active' | 'completed' | 'overdue';
+type BreakStatus = 'activo' | 'completado' | 'excedido';
 
 export interface StaffMember {
   id: string;
@@ -105,7 +105,7 @@ export default function ComidasClient({
           started_at: result.started_at,
           duration_minutes: result.duration_minutes,
           ended_at: null,
-          status: 'active',
+          status: 'activo',
         },
         ...prev,
       ]);
@@ -123,7 +123,7 @@ export default function ComidasClient({
     const elapsedS = Math.floor(
       (Date.now() - new Date(record.started_at).getTime()) / 1000,
     );
-    const status: BreakStatus = elapsedS > DURATION_S ? 'overdue' : 'completed';
+    const status: BreakStatus = elapsedS > DURATION_S ? 'excedido' : 'completado';
 
     setBreaks((prev) =>
       prev.map((b) => (b.id === breakId ? { ...b, ended_at: endedAt, status } : b)),
@@ -134,7 +134,7 @@ export default function ComidasClient({
     } catch {
       setBreaks((prev) =>
         prev.map((b) =>
-          b.id === breakId ? { ...b, ended_at: null, status: 'active' } : b,
+          b.id === breakId ? { ...b, ended_at: null, status: 'activo' } : b,
         ),
       );
     }
@@ -203,7 +203,7 @@ export default function ComidasClient({
               ? 'bg-amber-500'
               : 'bg-emerald-500'
             : finished
-            ? finished.status === 'overdue'
+            ? finished.status === 'excedido'
               ? 'bg-red-800'
               : 'bg-emerald-800'
             : 'bg-[#223530]';
@@ -255,12 +255,12 @@ export default function ComidasClient({
                   ) : finished ? (
                     <span
                       className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${
-                        finished.status === 'overdue'
+                        finished.status === 'excedido'
                           ? 'bg-red-950/60 border-red-800/50 text-red-300'
                           : 'bg-emerald-950/60 border-emerald-700/50 text-emerald-300'
                       }`}
                     >
-                      {finished.status === 'overdue' ? 'Excedido' : '✓ OK'}
+                      {finished.status === 'excedido' ? 'Excedido' : '✓ OK'}
                     </span>
                   ) : (
                     <span className="text-xs text-[#7d9990]">Libre</span>

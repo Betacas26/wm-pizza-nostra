@@ -2,9 +2,8 @@
 
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createClient } from '@/lib/supabase/server';
-import { redirect } from 'next/navigation';
 
-export type BreakStatus = 'active' | 'completed' | 'overdue';
+export type BreakStatus = 'activo' | 'completado' | 'excedido';
 
 export interface NewBreakResult {
   id: string;
@@ -13,7 +12,7 @@ export interface NewBreakResult {
   started_at: string;
   duration_minutes: number;
   ended_at: null;
-  status: 'active';
+  status: 'activo';
 }
 
 // ── Iniciar comida ─────────────────────────────────────────────────────────────
@@ -29,7 +28,6 @@ export async function startMealBreakAction(
 
   const admin = createAdminClient();
 
-  // Verificar que staffId sea un perfil activo real
   const { data: target } = await admin
     .from('profiles')
     .select('id')
@@ -37,9 +35,7 @@ export async function startMealBreakAction(
     .eq('active', true)
     .single();
 
-  if (!target) {
-    throw new Error('Colaborador no encontrado o inactivo.');
-  }
+  if (!target) throw new Error('Colaborador no encontrado o inactivo.');
 
   const breakDate = new Date().toISOString().split('T')[0];
   const startedAt = new Date().toISOString();
@@ -52,7 +48,7 @@ export async function startMealBreakAction(
       started_at: startedAt,
       duration_minutes: 30,
       ended_at: null,
-      status: 'active',
+      status: 'activo',
     })
     .select()
     .single();
@@ -68,7 +64,7 @@ export async function startMealBreakAction(
     started_at: startedAt,
     duration_minutes: 30,
     ended_at: null,
-    status: 'active',
+    status: 'activo',
   };
 }
 
@@ -96,7 +92,6 @@ export async function endMealBreakAction(
   const admin = createAdminClient();
 
   if (!isManager) {
-    // Verificar ownership: solo el propio empleado puede cerrar su comida
     const { data: breakRecord } = await admin
       .from('meal_breaks')
       .select('staff_id')

@@ -901,42 +901,74 @@ export default function VentasClient({
               </div>
             ) : (
               <>
-                <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl p-4">
-                  <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-3">
-                    Resumen del dia
-                  </p>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-xs text-[#7d9990] mb-0.5">Total ventas</p>
-                      <p className="font-mono font-bold tracking-tight text-[#e6edea]">
-                        {fmtMXN(dayTotals.total)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-[#7d9990] mb-0.5">A entregar total</p>
-                      <p className="font-mono font-bold tracking-tight text-[#E8899A]">
-                        {fmtMXN(dayTotals.to_deliver)}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-xs text-[#7d9990] mb-0.5">Propina Capitan</p>
-                      <p className="font-mono font-bold tracking-tight text-sky-400">
-                        {fmtMXN(dayTotals.captain_tip)}
-                      </p>
-                    </div>
-                    {dayTotals.sanction_amount > 0 && (
+                <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl overflow-hidden">
+                  <div className="px-4 pt-3.5 pb-3 border-b border-[#9E2A3E]/30">
+                    <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-3">
+                      Resumen {historyDate !== today ? historyDate : 'del día'}
+                    </p>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <p className="text-xs text-[#7d9990] mb-0.5">Bonos retenidos</p>
-                        <p className="font-bold text-orange-400">
-                          {fmtMXN(dayTotals.sanction_amount)}
+                        <p className="text-xs text-[#7d9990] mb-0.5">Total ventas</p>
+                        <p className="font-mono font-bold tracking-tight text-[#e6edea]">
+                          {fmtMXN(dayTotals.total)}
                         </p>
                       </div>
-                    )}
-                    <div>
-                      <p className="text-xs text-[#7d9990] mb-0.5">Registros</p>
-                      <p className="font-bold text-[#e6edea]">{todaySales.length}</p>
+                      <div>
+                        <p className="text-xs text-[#7d9990] mb-0.5">A entregar total</p>
+                        <p className="font-mono font-bold tracking-tight text-[#E8899A]">
+                          {fmtMXN(dayTotals.to_deliver)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#7d9990] mb-0.5">Propina Capitan</p>
+                        <p className="font-mono font-bold tracking-tight text-sky-400">
+                          {fmtMXN(dayTotals.captain_tip)}
+                        </p>
+                      </div>
+                      {dayTotals.sanction_amount > 0 && (
+                        <div>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Bonos retenidos</p>
+                          <p className="font-bold text-orange-400">
+                            {fmtMXN(dayTotals.sanction_amount)}
+                          </p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs text-[#7d9990] mb-0.5">Registros</p>
+                        <p className="font-bold text-[#e6edea]">{displaySales.length}</p>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Desglose por mesero */}
+                  {salesByStaff.length > 1 && (
+                    <div>
+                      <p className="px-4 pt-2.5 pb-1 text-[10px] font-bold text-[#7d9990] uppercase tracking-wider">
+                        Por mesero
+                      </p>
+                      <ul className="divide-y divide-[#9E2A3E]/20">
+                        {salesByStaff.map(({ name, sales }) => {
+                          const mTotal    = sales.reduce((a, s) => a + s.total, 0);
+                          const mDeliver  = sales.reduce((a, s) => a + s.to_deliver, 0);
+                          const mCaptain  = sales.reduce((a, s) => a + s.captain_tip, 0);
+                          return (
+                            <li key={sales[0].staff_id} className="px-4 py-2.5">
+                              <div className="flex items-center justify-between gap-2 mb-1">
+                                <span className="text-sm font-semibold text-[#e6edea] truncate">{name}</span>
+                                <span className="font-mono font-bold text-[#E8899A] text-sm shrink-0">
+                                  {fmtMXN(mDeliver)}
+                                </span>
+                              </div>
+                              <div className="flex gap-4 text-[11px] text-[#7d9990]">
+                                <span>Venta: {fmtMXN(mTotal)}</span>
+                                <span>Cap.: {fmtMXN(mCaptain)}</span>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {salesByStaff.map(({ name, sales }) => {

@@ -58,6 +58,7 @@ function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-MX', {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'America/Mexico_City',
   });
 }
 
@@ -68,13 +69,14 @@ export default function ComidasClient({
   today,
 }: ComidasClientProps) {
   const [breaks, setBreaks] = useState<MealBreak[]>(initialBreaks);
-  const [nowMs, setNowMs]   = useState(Date.now());
+  const [nowMs, setNowMs]   = useState(0);
   const [starting, setStarting] = useState<string | null>(null);
   const [ending, setEnding]     = useState<string | null>(null);
   const [error, setError]       = useState('');
 
-  // Reloj en vivo cada segundo
+  // Reloj en vivo cada segundo (inicia tras hidratación para evitar mismatch SSR)
   useEffect(() => {
+    setNowMs(Date.now());
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
@@ -206,7 +208,7 @@ export default function ComidasClient({
             </p>
             <div className="space-y-2">
               {activeBreaks.map((b) => {
-                const remaining = getRemaining(b.started_at, nowMs);
+                const remaining = nowMs > 0 ? getRemaining(b.started_at, nowMs) : DURATION_S;
                 const isOverdue  = remaining < 0;
                 const isWarning  = !isOverdue && remaining <= WARNING_S;
                 const progressPct = Math.min(100, Math.max(0, ((DURATION_S - remaining) / DURATION_S) * 100));

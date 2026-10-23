@@ -14,7 +14,7 @@ function calcular(rawTotal: number, rawSanctionPct = 0, hasCaptain = true) {
   const sanctionPct = isFinite(rawSanctionPct) && rawSanctionPct > 0 ? rawSanctionPct : 0;
   const contribution = Math.round(total * APORTE_PCT) / 100;
   const captain_tip = hasCaptain ? Math.round(total * CAPITAN_PCT) / 100 : 0;
-  const to_deliver = Math.round((contribution + CRISTALERIA) * 100) / 100;
+  const to_deliver = Math.round(contribution * 100) / 100;
   // La sanción es un % adicional que se separa como bono — NO se suma a to_deliver
   const sanction_amount = Math.round(total * sanctionPct) / 100;
   return { total, contribution, glassware: CRISTALERIA, captain_tip, to_deliver, sanction_pct: sanctionPct, sanction_amount };

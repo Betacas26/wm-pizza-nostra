@@ -51,7 +51,7 @@ function calcular(rawTotal: number, rawSanctionPct = 0, hasCaptain = true) {
     isFinite(rawSanctionPct) && rawSanctionPct > 0 ? rawSanctionPct : 0;
   const contribution = Math.round(total * APORTE_PCT) / 100;
   const captain_tip = hasCaptain ? Math.round(total * CAPITAN_PCT) / 100 : 0;
-  const to_deliver = Math.round((contribution + CRISTALERIA) * 100) / 100;
+  const to_deliver = Math.round(contribution * 100) / 100;
   const sanction_amount = Math.round(total * sanctionPct) / 100;
   return {
     total,
@@ -310,12 +310,15 @@ export default function VentasClient({
       captain_tip: r(displaySales.reduce((a, s) => a + s.captain_tip, 0)),
       total_matutino: r(mat.reduce((a, s) => a + s.total, 0)),
       to_deliver_matutino: r(mat.reduce((a, s) => a + s.to_deliver, 0)),
+      glassware_matutino: r(mat.length * CRISTALERIA),
       captain_matutino: r(mat.reduce((a, s) => a + s.captain_tip, 0)),
       count_matutino: mat.length,
       total_vespertino: r(ves.reduce((a, s) => a + s.total, 0)),
       to_deliver_vespertino: r(ves.reduce((a, s) => a + s.to_deliver, 0)),
+      glassware_vespertino: r(ves.length * CRISTALERIA),
       captain_vespertino: r(ves.reduce((a, s) => a + s.captain_tip, 0)),
       count_vespertino: ves.length,
+      glassware: r(displaySales.length * CRISTALERIA),
       sanction_amount: r(displaySales.reduce((a, s) => a + s.sanction_amount, 0)),
     };
   }, [displaySales]);
@@ -824,7 +827,7 @@ export default function VentasClient({
                     </span>
                   </div>
                   <div className="flex justify-between text-sm border-t border-[#223530] pt-2">
-                    <span className="font-bold text-[#e6edea]">Total a entregar</span>
+                    <span className="font-bold text-[#e6edea]">Aporte (5%)</span>
                     <span className="font-mono font-bold text-xl text-[#E8899A]">
                       {fmtMXN(liveCalc.to_deliver)}
                     </span>
@@ -947,8 +950,12 @@ export default function VentasClient({
                           <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(dayTotals.total_matutino)}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-[#7d9990] mb-0.5">A entregar</p>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Aporte (5%)</p>
                           <p className="font-mono font-bold text-[#E8899A]">{fmtMXN(dayTotals.to_deliver_matutino)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Cristalería</p>
+                          <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(dayTotals.glassware_matutino)}</p>
                         </div>
                         {dayTotals.captain_matutino > 0 && (
                           <div>
@@ -972,8 +979,12 @@ export default function VentasClient({
                           <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(dayTotals.total_vespertino)}</p>
                         </div>
                         <div>
-                          <p className="text-xs text-[#7d9990] mb-0.5">A entregar</p>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Aporte (5%)</p>
                           <p className="font-mono font-bold text-[#E8899A]">{fmtMXN(dayTotals.to_deliver_vespertino)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Cristalería</p>
+                          <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(dayTotals.glassware_vespertino)}</p>
                         </div>
                         {dayTotals.captain_vespertino > 0 && (
                           <div>
@@ -996,8 +1007,12 @@ export default function VentasClient({
                         <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(dayTotals.total)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-[#7d9990] mb-0.5">A entregar</p>
+                        <p className="text-xs text-[#7d9990] mb-0.5">Aporte (5%)</p>
                         <p className="font-mono font-bold text-[#E8899A]">{fmtMXN(dayTotals.to_deliver)}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-[#7d9990] mb-0.5">Cristalería</p>
+                        <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(dayTotals.glassware)}</p>
                       </div>
                       {dayTotals.captain_tip > 0 && (
                         <div>

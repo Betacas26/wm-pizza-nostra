@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
 // ── Constantes de negocio (canon) ─────────────────────────────────────────────
-const APORTE_PCT = 4.2;
+const APORTE_PCT = 5;
 const CRISTALERIA = 10.0;
 const CAPITAN_PCT = 0.8;
 

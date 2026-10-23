@@ -41,7 +41,7 @@ export interface VentasClientProps {
 
 
 // ── Constantes de negocio ──────────────────────────────────────────────────
-const APORTE_PCT = 4.2;
+const APORTE_PCT = 5;
 const CRISTALERIA = 10.0;
 const CAPITAN_PCT = 0.8;
 
@@ -302,12 +302,20 @@ export default function VentasClient({
 
   const dayTotals = useMemo(() => {
     const r = (n: number) => Math.round(n * 100) / 100;
+    const mat = displaySales.filter(s => s.shift === 'Matutino');
+    const ves = displaySales.filter(s => s.shift === 'Vespertino');
     return {
       total: r(displaySales.reduce((a, s) => a + s.total, 0)),
       to_deliver: r(displaySales.reduce((a, s) => a + s.to_deliver, 0)),
       captain_tip: r(displaySales.reduce((a, s) => a + s.captain_tip, 0)),
-      captain_matutino: r(displaySales.filter(s => s.shift === 'Matutino').reduce((a, s) => a + s.captain_tip, 0)),
-      captain_vespertino: r(displaySales.filter(s => s.shift === 'Vespertino').reduce((a, s) => a + s.captain_tip, 0)),
+      total_matutino: r(mat.reduce((a, s) => a + s.total, 0)),
+      to_deliver_matutino: r(mat.reduce((a, s) => a + s.to_deliver, 0)),
+      captain_matutino: r(mat.reduce((a, s) => a + s.captain_tip, 0)),
+      count_matutino: mat.length,
+      total_vespertino: r(ves.reduce((a, s) => a + s.total, 0)),
+      to_deliver_vespertino: r(ves.reduce((a, s) => a + s.to_deliver, 0)),
+      captain_vespertino: r(ves.reduce((a, s) => a + s.captain_tip, 0)),
+      count_vespertino: ves.length,
       sanction_amount: r(displaySales.reduce((a, s) => a + s.sanction_amount, 0)),
     };
   }, [displaySales]);
@@ -927,51 +935,82 @@ export default function VentasClient({
             ) : (
               <>
                 <div className="bg-[#420F18]/30 border border-[#9E2A3E]/50 rounded-2xl overflow-hidden">
-                  <div className="px-4 pt-3.5 pb-3 border-b border-[#9E2A3E]/30">
-                    <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-3">
-                      Resumen {historyDate !== today ? historyDate : 'del día'}
+                  {/* Matutino */}
+                  {dayTotals.count_matutino > 0 && (
+                    <div className="px-4 pt-3.5 pb-3 border-b border-[#9E2A3E]/30">
+                      <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider mb-2">
+                        Matutino &middot; {dayTotals.count_matutino} {dayTotals.count_matutino === 1 ? 'registro' : 'registros'}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Total ventas</p>
+                          <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(dayTotals.total_matutino)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#7d9990] mb-0.5">A entregar</p>
+                          <p className="font-mono font-bold text-[#E8899A]">{fmtMXN(dayTotals.to_deliver_matutino)}</p>
+                        </div>
+                        {dayTotals.captain_matutino > 0 && (
+                          <div>
+                            <p className="text-xs text-[#7d9990] mb-0.5">Prop. Capitán</p>
+                            <p className="font-mono font-bold text-sky-400">{fmtMXN(dayTotals.captain_matutino)}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Vespertino */}
+                  {dayTotals.count_vespertino > 0 && (
+                    <div className="px-4 pt-3.5 pb-3 border-b border-[#9E2A3E]/30">
+                      <p className="text-[10px] font-bold text-[#7d9990] uppercase tracking-wider mb-2">
+                        Vespertino &middot; {dayTotals.count_vespertino} {dayTotals.count_vespertino === 1 ? 'registro' : 'registros'}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Total ventas</p>
+                          <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(dayTotals.total_vespertino)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-[#7d9990] mb-0.5">A entregar</p>
+                          <p className="font-mono font-bold text-[#E8899A]">{fmtMXN(dayTotals.to_deliver_vespertino)}</p>
+                        </div>
+                        {dayTotals.captain_vespertino > 0 && (
+                          <div>
+                            <p className="text-xs text-[#7d9990] mb-0.5">Prop. Capitán</p>
+                            <p className="font-mono font-bold text-sky-400">{fmtMXN(dayTotals.captain_vespertino)}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Total del día */}
+                  <div className="px-4 pt-3.5 pb-3 border-b border-[#9E2A3E]/30 bg-[#420F18]/30">
+                    <p className="text-xs font-bold text-[#E8899A] uppercase tracking-wider mb-2">
+                      Total {historyDate !== today ? historyDate : 'del día'} &middot; {displaySales.length} registros
                     </p>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div className="grid grid-cols-2 gap-2 text-sm">
                       <div>
                         <p className="text-xs text-[#7d9990] mb-0.5">Total ventas</p>
-                        <p className="font-mono font-bold tracking-tight text-[#e6edea]">
-                          {fmtMXN(dayTotals.total)}
-                        </p>
+                        <p className="font-mono font-bold text-[#e6edea]">{fmtMXN(dayTotals.total)}</p>
                       </div>
                       <div>
-                        <p className="text-xs text-[#7d9990] mb-0.5">A entregar total</p>
-                        <p className="font-mono font-bold tracking-tight text-[#E8899A]">
-                          {fmtMXN(dayTotals.to_deliver)}
-                        </p>
+                        <p className="text-xs text-[#7d9990] mb-0.5">A entregar</p>
+                        <p className="font-mono font-bold text-[#E8899A]">{fmtMXN(dayTotals.to_deliver)}</p>
                       </div>
-                      {dayTotals.captain_matutino > 0 && (
+                      {dayTotals.captain_tip > 0 && (
                         <div>
-                          <p className="text-xs text-[#7d9990] mb-0.5">Cap. Matutino</p>
-                          <p className="font-mono font-bold tracking-tight text-sky-400">
-                            {fmtMXN(dayTotals.captain_matutino)}
-                          </p>
-                        </div>
-                      )}
-                      {dayTotals.captain_vespertino > 0 && (
-                        <div>
-                          <p className="text-xs text-[#7d9990] mb-0.5">Cap. Vespertino</p>
-                          <p className="font-mono font-bold tracking-tight text-sky-400">
-                            {fmtMXN(dayTotals.captain_vespertino)}
-                          </p>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Prop. Capitán total</p>
+                          <p className="font-mono font-bold text-sky-400">{fmtMXN(dayTotals.captain_tip)}</p>
                         </div>
                       )}
                       {dayTotals.sanction_amount > 0 && (
                         <div>
                           <p className="text-xs text-[#7d9990] mb-0.5">Bonos retenidos</p>
-                          <p className="font-bold text-orange-400">
-                            {fmtMXN(dayTotals.sanction_amount)}
-                          </p>
+                          <p className="font-bold text-orange-400">{fmtMXN(dayTotals.sanction_amount)}</p>
                         </div>
                       )}
-                      <div>
-                        <p className="text-xs text-[#7d9990] mb-0.5">Registros</p>
-                        <p className="font-bold text-[#e6edea]">{displaySales.length}</p>
-                      </div>
                     </div>
                   </div>
 

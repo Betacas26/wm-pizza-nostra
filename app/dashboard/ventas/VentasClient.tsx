@@ -53,12 +53,14 @@ function calcular(rawTotal: number, rawSanctionPct = 0, hasCaptain = true) {
   const captain_tip = hasCaptain ? Math.round(total * CAPITAN_PCT) / 100 : 0;
   const to_deliver = Math.round(contribution * 100) / 100;
   const sanction_amount = Math.round(total * sanctionPct) / 100;
+  const cocina_cuota = Math.round((contribution - captain_tip) * 100) / 100;
   return {
     total,
     contribution,
     glassware: CRISTALERIA,
     captain_tip,
     to_deliver,
+    cocina_cuota,
     sanction_amount,
   };
 }
@@ -311,14 +313,17 @@ export default function VentasClient({
       total_matutino: r(mat.reduce((a, s) => a + s.total, 0)),
       to_deliver_matutino: r(mat.reduce((a, s) => a + s.to_deliver, 0)),
       glassware_matutino: r(mat.length * CRISTALERIA),
+      cocina_matutino: r(mat.reduce((a, s) => a + s.to_deliver - s.captain_tip, 0)),
       captain_matutino: r(mat.reduce((a, s) => a + s.captain_tip, 0)),
       count_matutino: mat.length,
       total_vespertino: r(ves.reduce((a, s) => a + s.total, 0)),
       to_deliver_vespertino: r(ves.reduce((a, s) => a + s.to_deliver, 0)),
       glassware_vespertino: r(ves.length * CRISTALERIA),
+      cocina_vespertino: r(ves.reduce((a, s) => a + s.to_deliver - s.captain_tip, 0)),
       captain_vespertino: r(ves.reduce((a, s) => a + s.captain_tip, 0)),
       count_vespertino: ves.length,
       glassware: r(displaySales.length * CRISTALERIA),
+      cocina_total: r(displaySales.reduce((a, s) => a + s.to_deliver - s.captain_tip, 0)),
       sanction_amount: r(displaySales.reduce((a, s) => a + s.sanction_amount, 0)),
     };
   }, [displaySales]);
@@ -838,6 +843,10 @@ export default function VentasClient({
                       <span className="font-semibold text-sky-400">{fmtMXN(liveCalc.captain_tip)}</span>
                     </div>
                   )}
+                  <div className="flex justify-between text-xs border-t border-[#223530] pt-2">
+                    <span className="font-bold text-emerald-300">Cuota Cocina</span>
+                    <span className="font-bold text-emerald-400">{fmtMXN(liveCalc.cocina_cuota)}</span>
+                  </div>
                   {liveCalc.sanction_amount > 0 && (
                     <div className="flex justify-between text-xs bg-orange-950/40 border border-orange-800/50 rounded-xl px-3 py-2 mt-1">
                       <span className="text-orange-300 font-semibold">
@@ -963,6 +972,10 @@ export default function VentasClient({
                             <p className="font-mono font-bold text-sky-400">{fmtMXN(dayTotals.captain_matutino)}</p>
                           </div>
                         )}
+                        <div className="col-span-2 border-t border-[#9E2A3E]/20 pt-1 mt-0.5">
+                          <p className="text-xs text-[#7d9990] mb-0.5">Cuota Cocina</p>
+                          <p className="font-mono font-bold text-emerald-400">{fmtMXN(dayTotals.cocina_matutino)}</p>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -992,6 +1005,10 @@ export default function VentasClient({
                             <p className="font-mono font-bold text-sky-400">{fmtMXN(dayTotals.captain_vespertino)}</p>
                           </div>
                         )}
+                        <div className="col-span-2 border-t border-[#9E2A3E]/20 pt-1 mt-0.5">
+                          <p className="text-xs text-[#7d9990] mb-0.5">Cuota Cocina</p>
+                          <p className="font-mono font-bold text-emerald-400">{fmtMXN(dayTotals.cocina_vespertino)}</p>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -1020,6 +1037,10 @@ export default function VentasClient({
                           <p className="font-mono font-bold text-sky-400">{fmtMXN(dayTotals.captain_tip)}</p>
                         </div>
                       )}
+                      <div className="col-span-2 border-t border-[#9E2A3E]/20 pt-1 mt-0.5">
+                        <p className="text-xs text-[#7d9990] mb-0.5">Cuota Cocina total</p>
+                        <p className="font-mono font-bold text-emerald-400">{fmtMXN(dayTotals.cocina_total)}</p>
+                      </div>
                       {dayTotals.sanction_amount > 0 && (
                         <div>
                           <p className="text-xs text-[#7d9990] mb-0.5">Bonos retenidos</p>

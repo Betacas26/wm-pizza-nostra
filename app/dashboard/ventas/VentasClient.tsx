@@ -41,16 +41,16 @@ export interface VentasClientProps {
 
 
 // ── Constantes de negocio ──────────────────────────────────────────────────
-const APORTE_PCT = 5;
+const APORTE_PCT = 4.2;
 const CRISTALERIA = 10.0;
 const CAPITAN_PCT = 0.8;
 
-function calcular(rawTotal: number, rawSanctionPct = 0) {
+function calcular(rawTotal: number, rawSanctionPct = 0, hasCaptain = true) {
   const total = isFinite(rawTotal) && rawTotal > 0 ? rawTotal : 0;
   const sanctionPct =
     isFinite(rawSanctionPct) && rawSanctionPct > 0 ? rawSanctionPct : 0;
   const contribution = Math.round(total * APORTE_PCT) / 100;
-  const captain_tip = Math.round(total * CAPITAN_PCT) / 100;
+  const captain_tip = hasCaptain ? Math.round(total * CAPITAN_PCT) / 100 : 0;
   const to_deliver = Math.round((contribution + CRISTALERIA) * 100) / 100;
   const sanction_amount = Math.round(total * sanctionPct) / 100;
   return {
@@ -208,6 +208,7 @@ export default function VentasClient({
   const [formSaleDate, setFormSaleDate] = useState(today);
   const [formTotal, setFormTotal] = useState('');
   const [formSanctionPct, setFormSanctionPct] = useState('');
+  const [formHasCaptain, setFormHasCaptain] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState(false);
   const [dateError, setDateError] = useState('');
@@ -227,8 +228,8 @@ export default function VentasClient({
     const n = parseFloat(formTotal);
     if (!isFinite(n) || n <= 0) return null;
     const s = parseFloat(formSanctionPct) || 0;
-    return calcular(n, s);
-  }, [formTotal, formSanctionPct]);
+    return calcular(n, s, formHasCaptain);
+  }, [formTotal, formSanctionPct, formHasCaptain]);
 
   function handleKeypad(key: string) {
     if (key === '⌫') {
@@ -305,6 +306,8 @@ export default function VentasClient({
       total: r(displaySales.reduce((a, s) => a + s.total, 0)),
       to_deliver: r(displaySales.reduce((a, s) => a + s.to_deliver, 0)),
       captain_tip: r(displaySales.reduce((a, s) => a + s.captain_tip, 0)),
+      captain_matutino: r(displaySales.filter(s => s.shift === 'Matutino').reduce((a, s) => a + s.captain_tip, 0)),
+      captain_vespertino: r(displaySales.filter(s => s.shift === 'Vespertino').reduce((a, s) => a + s.captain_tip, 0)),
       sanction_amount: r(displaySales.reduce((a, s) => a + s.sanction_amount, 0)),
     };
   }, [displaySales]);
@@ -336,6 +339,7 @@ export default function VentasClient({
         staff_id: formStaffId,
         total: rawTotal,
         sanction_pct: parseFloat(formSanctionPct) || 0,
+        has_captain: formHasCaptain,
       });
 
       const record: SaleRecord = {
@@ -392,7 +396,7 @@ export default function VentasClient({
       '─────────────────────',
       `*Total a entregar: ${fmtMXN(r.to_deliver)}*`,
       '─────────────────────',
-      `Propina Capitán (info): ${fmtMXN(r.captain_tip)}`,
+      ...(r.captain_tip > 0 ? [`Propina Capitán (${CAPITAN_PCT}%):  ${fmtMXN(r.captain_tip)}`] : []),
     ];
     if (r.sanction_amount > 0) {
       lines.push(`Bono sanción (${r.sanction_pct}%): ${fmtMXN(r.sanction_amount)}`);
@@ -736,6 +740,29 @@ export default function VentasClient({
               </div>
             </div>
 
+            {/* Capitán */}
+            <div>
+              <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
+                Capitán en este turno
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFormHasCaptain(true)}
+                  className={`flex-1 min-h-[44px] rounded-xl font-semibold text-sm transition duration-150 ease-out active:scale-[0.98] select-none ${formHasCaptain ? 'bg-[#7A1D2E] border border-[#9E2A3E]/60 text-white shadow-sm' : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'}`}
+                >
+                  Sí hay capitán
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormHasCaptain(false)}
+                  className={`flex-1 min-h-[44px] rounded-xl font-semibold text-sm transition duration-150 ease-out active:scale-[0.98] select-none ${!formHasCaptain ? 'bg-sky-700 text-white shadow-sm' : 'bg-[#1c2b27] border border-[#223530] text-[#7d9990] hover:text-[#e6edea]'}`}
+                >
+                  Sin capitán
+                </button>
+              </div>
+            </div>
+
             {/* Fecha */}
             <div>
               <label className="block text-xs font-bold text-[#7d9990] uppercase tracking-wider mb-1.5">
@@ -794,14 +821,12 @@ export default function VentasClient({
                       {fmtMXN(liveCalc.to_deliver)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-xs pt-0.5">
-                    <span className="text-[#7d9990] italic">
-                      Propina Capitan ({CAPITAN_PCT}% — info)
-                    </span>
-                    <span className="text-[#7d9990] italic">
-                      {fmtMXN(liveCalc.captain_tip)}
-                    </span>
-                  </div>
+                  {liveCalc.captain_tip > 0 && (
+                    <div className="flex justify-between text-xs border-t border-[#223530] pt-2">
+                      <span className="text-sky-300">Propina Capitán ({CAPITAN_PCT}%)</span>
+                      <span className="font-semibold text-sky-400">{fmtMXN(liveCalc.captain_tip)}</span>
+                    </div>
+                  )}
                   {liveCalc.sanction_amount > 0 && (
                     <div className="flex justify-between text-xs bg-orange-950/40 border border-orange-800/50 rounded-xl px-3 py-2 mt-1">
                       <span className="text-orange-300 font-semibold">
@@ -846,7 +871,7 @@ export default function VentasClient({
                   className="w-full min-h-[44px] px-3 py-2 rounded-xl border border-[#223530] bg-[#1c2b27] text-[#e6edea] text-base focus:outline-none focus:ring-2 focus:ring-[#7A1D2E]"
                 />
                 <p className="text-[11px] text-[#7d9990] mt-1">
-                  El 5% base siempre se entrega. El % adicional se registra aparte.
+                  El mesero entrega 4.2% + cristalería. El capitán recibe 0.8% por separado.
                 </p>
               </div>
             )}
@@ -919,12 +944,22 @@ export default function VentasClient({
                           {fmtMXN(dayTotals.to_deliver)}
                         </p>
                       </div>
-                      <div>
-                        <p className="text-xs text-[#7d9990] mb-0.5">Propina Capitan</p>
-                        <p className="font-mono font-bold tracking-tight text-sky-400">
-                          {fmtMXN(dayTotals.captain_tip)}
-                        </p>
-                      </div>
+                      {dayTotals.captain_matutino > 0 && (
+                        <div>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Cap. Matutino</p>
+                          <p className="font-mono font-bold tracking-tight text-sky-400">
+                            {fmtMXN(dayTotals.captain_matutino)}
+                          </p>
+                        </div>
+                      )}
+                      {dayTotals.captain_vespertino > 0 && (
+                        <div>
+                          <p className="text-xs text-[#7d9990] mb-0.5">Cap. Vespertino</p>
+                          <p className="font-mono font-bold tracking-tight text-sky-400">
+                            {fmtMXN(dayTotals.captain_vespertino)}
+                          </p>
+                        </div>
+                      )}
                       {dayTotals.sanction_amount > 0 && (
                         <div>
                           <p className="text-xs text-[#7d9990] mb-0.5">Bonos retenidos</p>

@@ -61,7 +61,7 @@ export async function startMealBreakAction(
   if (!target) throw new Error('Colaborador no encontrado o inactivo.');
 
   // Verificar que no tenga ya una comida activa hoy
-  const breakDate = new Date().toISOString().split('T')[0];
+  const breakDate = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
   const { data: existing } = await admin
     .from('meal_breaks')
     .select('id')

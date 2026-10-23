@@ -5,15 +5,15 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
 // ── Constantes de negocio (canon) ─────────────────────────────────────────────
-const APORTE_PCT = 5;
+const APORTE_PCT = 4.2;
 const CRISTALERIA = 10.0;
 const CAPITAN_PCT = 0.8;
 
-function calcular(rawTotal: number, rawSanctionPct = 0) {
+function calcular(rawTotal: number, rawSanctionPct = 0, hasCaptain = true) {
   const total = isFinite(rawTotal) && rawTotal > 0 ? rawTotal : 0;
   const sanctionPct = isFinite(rawSanctionPct) && rawSanctionPct > 0 ? rawSanctionPct : 0;
   const contribution = Math.round(total * APORTE_PCT) / 100;
-  const captain_tip = Math.round(total * CAPITAN_PCT) / 100;
+  const captain_tip = hasCaptain ? Math.round(total * CAPITAN_PCT) / 100 : 0;
   const to_deliver = Math.round((contribution + CRISTALERIA) * 100) / 100;
   // La sanción es un % adicional que se separa como bono — NO se suma a to_deliver
   const sanction_amount = Math.round(total * sanctionPct) / 100;
@@ -26,6 +26,7 @@ export interface SaleInput {
   staff_id: string;
   total: number;
   sanction_pct?: number; // % adicional como bono/sanción (solo managers)
+  has_captain?: boolean;
 }
 
 export interface SaleRow {
@@ -74,7 +75,7 @@ export async function submitSaleAction(data: SaleInput): Promise<SaleRow> {
 
   // Meseros: máximo 3 días hacia atrás; managers sin límite
   if (!isManager) {
-    const todayMs = new Date(new Date().toISOString().split('T')[0] + 'T00:00:00Z').getTime();
+    const todayMs = new Date(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' }) + 'T00:00:00Z').getTime();
     const saleDateMs = new Date(data.sale_date + 'T00:00:00Z').getTime();
     const diffDays = Math.floor((todayMs - saleDateMs) / 86_400_000);
     if (diffDays > 3 || saleDateMs > todayMs) {
@@ -85,7 +86,8 @@ export async function submitSaleAction(data: SaleInput): Promise<SaleRow> {
   // Recalcular server-side — el cliente no dicta valores financieros
   // Meseros nunca pueden aplicar sanción; solo managers
   const sanctionPct = isManager ? (data.sanction_pct ?? 0) : 0;
-  const calc = calcular(data.total, sanctionPct);
+  const hasCaptain = data.has_captain !== false;
+  const calc = calcular(data.total, sanctionPct, hasCaptain);
 
   const admin = createAdminClient();
   const { data: inserted, error } = await admin

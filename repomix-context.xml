@@ -1,0 +1,399 @@
+This file is a merged representation of a subset of the codebase, containing specifically included files, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Only files matching these patterns are included: app/**/*.tsx, lib/**/*.ts, middleware.ts, schema.sql
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/
+  dashboard/
+    page.tsx
+  login/
+    page.tsx
+  layout.tsx
+  page.tsx
+lib/
+  supabase/
+    client.ts
+    server.ts
+middleware.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/dashboard/page.tsx">
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+
+interface UserProfile {
+  name: string | null;
+  role: string | null;
+  home_area: string | null;
+}
+
+export default async function DashboardPage() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const { data } = await supabase
+    .from('profiles')
+    .select('name, role, home_area')
+    .eq('id', user.id)
+    .single();
+
+  const profile = data as UserProfile | null;
+
+  return (
+    <div className="min-h-screen bg-stone-50 text-stone-800">
+      <header className="bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between shadow-sm sticky top-0 z-10">
+        <div>
+          <h1 className="font-extrabold text-amber-600 text-lg leading-tight">
+            WM Pizza Nostra
+          </h1>
+          <p className="text-xs text-stone-500">
+            {profile?.name || user.email} ·{' '}
+            <span className="capitalize font-semibold text-stone-700">
+              {profile?.role || 'Personal'}
+            </span>
+          </p>
+        </div>
+      </header>
+
+      <main className="p-4 max-w-xl mx-auto space-y-4">
+        <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm">
+          <h2 className="text-base font-bold text-stone-900 mb-1">
+            Panel Operativo
+          </h2>
+          <p className="text-sm text-stone-500">
+            Selecciona un módulo para gestionar el turno:
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <button className="p-4 bg-white rounded-xl border border-stone-200 shadow-sm text-left hover:border-amber-400 transition">
+            <span className="text-2xl block mb-1">🍽️</span>
+            <span className="font-bold text-sm block">Mesas</span>
+            <span className="text-xs text-stone-400">Asignar por área</span>
+          </button>
+
+          <button className="p-4 bg-white rounded-xl border border-stone-200 shadow-sm text-left hover:border-amber-400 transition">
+            <span className="text-2xl block mb-1">⏰</span>
+            <span className="font-bold text-sm block">Horarios</span>
+            <span className="text-xs text-stone-400">Turnos semanales</span>
+          </button>
+
+          <button className="p-4 bg-white rounded-xl border border-stone-200 shadow-sm text-left hover:border-amber-400 transition">
+            <span className="text-2xl block mb-1">🍕</span>
+            <span className="font-bold text-sm block">Comidas</span>
+            <span className="text-xs text-stone-400">Control 30 min</span>
+          </button>
+
+          <button className="p-4 bg-white rounded-xl border border-stone-200 shadow-sm text-left hover:border-amber-400 transition">
+            <span className="text-2xl block mb-1">💵</span>
+            <span className="font-bold text-sm block">Ventas</span>
+            <span className="text-xs text-stone-400">Cierre y propinas</span>
+          </button>
+
+          <button className="p-4 bg-white rounded-xl border border-stone-200 shadow-sm text-left hover:border-amber-400 transition">
+            <span className="text-2xl block mb-1">📋</span>
+            <span className="font-bold text-sm block">Checklist</span>
+            <span className="text-xs text-stone-400">Cierre de área</span>
+          </button>
+
+          <button className="p-4 bg-white rounded-xl border border-stone-200 shadow-sm text-left hover:border-amber-400 transition">
+            <span className="text-2xl block mb-1">⭐</span>
+            <span className="font-bold text-sm block">Rúbricas</span>
+            <span className="text-xs text-stone-400">Evaluación</span>
+          </button>
+        </div>
+      </main>
+    </div>
+  );
+}
+</file>
+
+<file path="app/login/page.tsx">
+'use client';
+
+import { useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+
+export default function LoginPage() {
+  const router = useRouter();
+  const supabase = createClient();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    setErrorMsg(null);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      setErrorMsg('Credenciales inválidas. Verifica tu correo y contraseña.');
+      setLoading(false);
+    } else {
+      router.push('/dashboard');
+      router.refresh();
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-stone-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm bg-white p-6 rounded-2xl shadow-lg border border-stone-200">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-black text-amber-600 tracking-wide">
+            WM PIZZA NOSTRA
+          </h1>
+          <p className="text-sm text-stone-500 mt-1">Gestión operativa de turno</p>
+        </div>
+
+        {errorMsg && (
+          <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 text-sm font-medium border border-red-200">
+            {errorMsg}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+              Correo
+            </label>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full p-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base"
+              placeholder="tu@correo.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-stone-700 uppercase tracking-wider mb-1">
+              Contraseña
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full p-3 rounded-xl border border-stone-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-stone-800 text-base"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl transition duration-150 disabled:opacity-50 mt-2 shadow"
+          >
+            {loading ? 'Verificando...' : 'Iniciar Sesión'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/layout.tsx">
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "Create Next App",
+  description: "Generated by create next app",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">{children}</body>
+    </html>
+  );
+}
+</file>
+
+<file path="app/page.tsx">
+import { redirect } from 'next/navigation';
+
+export default function Home() {
+  redirect('/login');
+}
+</file>
+
+<file path="lib/supabase/client.ts">
+import { createBrowserClient } from '@supabase/ssr';
+
+export function createClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error('Faltan las variables de entorno de Supabase en .env.local');
+  }
+
+  return createBrowserClient(url, anonKey);
+}
+</file>
+
+<file path="lib/supabase/server.ts">
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+
+export async function createClient() {
+  const cookieStore = await cookies();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    throw new Error('Faltan las variables de entorno de Supabase en .env.local');
+  }
+
+  return createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options: CookieOptions }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // Ignorado en Server Components de solo lectura
+        }
+      },
+    },
+  });
+}
+</file>
+
+<file path="middleware.ts">
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { NextResponse, type NextRequest } from 'next/server';
+
+export async function middleware(request: NextRequest) {
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anonKey) {
+    return response;
+  }
+
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }: { name: string; value: string; options?: CookieOptions }) =>
+          request.cookies.set(name, value)
+        );
+        response = NextResponse.next({
+          request,
+        });
+        cookiesToSet.forEach(({ name, value, options }: { name: string; value: string; options: CookieOptions }) =>
+          response.cookies.set(name, value, options)
+        );
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const isAuthPage = request.nextUrl.pathname.startsWith('/login');
+  const isDashboardPage = request.nextUrl.pathname.startsWith('/dashboard');
+
+  if (!user && isDashboardPage) {
+    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  if (user && isAuthPage) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+};
+</file>
+
+</files>

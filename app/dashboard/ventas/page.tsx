@@ -36,7 +36,7 @@ export default async function VentasPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 
   // Tres consultas en paralelo: personal activo, ventas de hoy, rol del usuario
   const [{ data: profilesData }, { data: salesData }, { data: meData }] =

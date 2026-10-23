@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   const isManager = role === 'admin' || role === 'supervisor';
   const isBarraManager = role === 'admin' || role === 'encargado_barra';
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
   const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
 
   const [

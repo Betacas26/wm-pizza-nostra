@@ -20,7 +20,7 @@ export default async function SancionesPage() {
   const isManager = role === 'admin' || role === 'supervisor';
   if (!isManager) redirect('/dashboard');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 
   const { data: profilesData } = await supabase
     .from('profiles')

@@ -21,7 +21,7 @@ export default async function BarraPage() {
     redirect('/dashboard');
   }
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 
   const [{ data: inventoryData }, { data: mermasData }] = await Promise.all([
     supabase

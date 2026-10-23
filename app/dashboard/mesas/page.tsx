@@ -23,7 +23,7 @@ export default async function MesasPage() {
   const isManager =
     profile?.role === 'admin' || profile?.role === 'supervisor';
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 
   const [{ data: mData }, { data: aData }] = await Promise.all([
     supabase

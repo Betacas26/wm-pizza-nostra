@@ -181,7 +181,7 @@ export async function recordMermaAction(params: {
   const userId = await assertBarraRole();
   const admin = createAdminClient();
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 
   const { data: inserted, error } = await admin
     .from('bar_mermas')

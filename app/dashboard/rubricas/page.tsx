@@ -30,7 +30,7 @@ export default async function RubricasPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
   const firstDayOfMonth = today.slice(0, 7) + '-01';
 
   // Consultas en paralelo: personal activo, mis datos, evaluaciones del mes, criterios

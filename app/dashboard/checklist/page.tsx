@@ -32,7 +32,7 @@ export default async function ChecklistPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Mexico_City' });
 
   const { data: meData } = await supabase
     .from('profiles')
